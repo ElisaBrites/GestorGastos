@@ -13,6 +13,7 @@ import {
 import { useStore } from '../../store/useStore'
 import { useUI } from '../../store/useUI'
 import { todayISO } from '../../lib/dates'
+import { useCloudSync } from '../../lib/useCloudSync'
 import { useThemeSync } from '../../lib/useTheme'
 import { cn } from '../../lib/utils'
 import { Sidebar } from './Sidebar'
@@ -40,6 +41,7 @@ export function AppLayout() {
   ).length
 
   useThemeSync()
+  useCloudSync()
 
   useEffect(() => {
     setMenuOpen(false)

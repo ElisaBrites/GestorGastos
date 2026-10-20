@@ -2,9 +2,12 @@ import { useRef, useState, type ChangeEvent } from 'react'
 import {
   Check,
   CheckCircle2,
+  Cloud,
+  CloudOff,
   Coins,
   Database,
   Download,
+  LogOut,
   Monitor,
   Moon,
   Palette,
@@ -15,10 +18,13 @@ import {
   Sparkles,
   Sun,
   Upload,
+  UserRound,
   WifiOff,
 } from 'lucide-react'
+import { useAuth } from '../store/useAuth'
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
+import { appDataFromStore, saveCloudData } from '../lib/cloud'
 import { CURRENCIES, formatMoney } from '../lib/format'
 import { DEFAULT_SETTINGS } from '../lib/defaults'
 import { todayISO } from '../lib/dates'
@@ -83,6 +89,9 @@ export function Settings() {
   const resetAll = useStore((state) => state.resetAll)
   const toast = useUI((state) => state.toast)
   const { canInstall, isInstalled, isIOS, install } = useInstallPrompt()
+  const user = useAuth((state) => state.user)
+  const offline = useAuth((state) => state.offline)
+  const logout = useAuth((state) => state.logout)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [confirmDemo, setConfirmDemo] = useState(false)
@@ -96,6 +105,15 @@ export function Settings() {
     } else if (outcome === 'dismissed') {
       toast('Puedes instalar Bolsillo más tarde desde el menú del navegador.', 'info')
     }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await saveCloudData(appDataFromStore(useStore.getState()))
+    } catch {
+      // El cierre de sesión local debe funcionar aunque no haya conexión.
+    }
+    await logout()
   }
 
   const themes: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
@@ -360,6 +378,42 @@ export function Settings() {
             Funciona sin conexión
           </span>
         </div>
+      </section>
+
+      <section className="card p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-soft text-brand">
+              <UserRound size={17} />
+            </span>
+            <div>
+              <h2 className="section-title">Cuenta</h2>
+              <p className="text-[11px] text-muted">
+                Sesión iniciada como{' '}
+                <span className="font-medium text-fg">{user?.username ?? '—'}</span>.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10.5px] font-medium',
+                offline ? 'bg-warn-soft text-warn' : 'bg-income-soft text-income',
+              )}
+            >
+              {offline ? <CloudOff size={12} /> : <Cloud size={12} />}
+              {offline ? 'Sin conexión' : 'En la nube'}
+            </span>
+            <Button variant="secondary" size="sm" onClick={() => void handleLogout()}>
+              <LogOut size={14} />
+              Cerrar sesión
+            </Button>
+          </div>
+        </div>
+        <p className="mt-3 text-[10.5px] leading-relaxed text-faint">
+          Tus datos se guardan en PostgreSQL y se sincronizan automáticamente. En este
+          dispositivo queda una copia local para poder consultarlos sin conexión.
+        </p>
       </section>
 
       <section className="card p-5">
