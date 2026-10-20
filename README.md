@@ -19,6 +19,23 @@ npm run build       # compilación de producción en dist/
 npm run preview     # servir la compilación
 ```
 
+## Instalación en móvil y tablet
+
+Bolsillo es una **PWA instalable**. Para probarla con service worker y funcionamiento offline usa la compilación de producción:
+
+```bash
+npm run build
+npm run preview
+```
+
+- **Android (Chrome/Edge)**: abre la URL de producción y entra en **Ajustes → Instalar en tu móvil**, o usa el menú del navegador → **Instalar aplicación**.
+- **iPhone/iPad (Safari)**: abre la URL, toca **Compartir → Añadir a pantalla de inicio**. En otros navegadores de iOS la opción está en el mismo menú.
+- La app se abre a pantalla completa, respeta las áreas seguras de la pantalla y adapta la navegación a celulares y tablets.
+- Tras la primera visita, el service worker precarga la aplicación para que puedas abrirla y consultar tus datos **sin conexión**.
+- Los datos siguen guardándose en el `localStorage` de cada navegador. Para moverlos a otro dispositivo usa **Ajustes → Exportar copia de seguridad** e **Importar copia**.
+
+El service worker solo se activa en la compilación de producción; `npm run dev` no cachea archivos para no interferir con la recarga en caliente. Si cambias el icono de la app, regenera los tamaños para PWA con `npm run pwa:icons` desde `public/app-icon.svg`.
+
 ## Funcionalidades
 
 - **Fecha de referencia global**: una barra superior permite consultar toda la app tal como estaba —o estará— en cualquier fecha. Los saldos, totales, gráficos y listados se calculan hasta esa fecha. «Vista actual» usa hoy, «Vista histórica» oculta lo posterior y «Vista proyectada» incluye los movimientos programados hasta la fecha elegida. El botón **Hoy** vuelve a la fecha real.
@@ -30,7 +47,7 @@ npm run preview     # servir la compilación
 - **Billeteras**: varias cuentas (efectivo, banco, ahorros…) con saldo inicial, saldo a la fecha de referencia e ingresos/gastos del mes. Cada billetera se puede excluir del balance total con el botón de visibilidad de la tarjeta o desde su ficha.
 - **Categorías**: categorías y subcategorías con icono y color propios; se pueden crear y editar, incluso al vuelo desde el formulario de movimiento.
 - **Estadísticas**: análisis por categoría y subcategoría para gastos, ingresos o **ambos juntos**, con tarjetas combinadas de ingresos, gastos, balance y actividad. Permite filtrar por mes/año/todo y **seleccionar varias billeteras a la vez** (o todas). Incluye evolución de 6 meses, subcategorías destacadas y paneles separados de ingresos y gastos cuando se usa el modo «Ambos». Solo se contabilizan los movimientos hasta la fecha de referencia.
-- **Ajustes**: tema claro/oscuro/sistema, moneda, exportación e importación JSON (incluye transferencias y billeteras excluidas del total), datos de ejemplo y restablecimiento.
+- **Ajustes**: tema claro/oscuro/sistema, moneda, instalación como app en móvil/tablet, exportación e importación JSON (incluye transferencias y billeteras excluidas del total), datos de ejemplo y restablecimiento.
 
 ## Datos
 
@@ -38,4 +55,4 @@ Todo se guarda en `localStorage` bajo la clave `bolsillo.v1`; no hay servidor ni
 
 ## Tecnología
 
-React 19, TypeScript, Vite, Tailwind CSS 4, Zustand (persistencia), Recharts y Lucide.
+React 19, TypeScript, Vite, Tailwind CSS 4, Zustand (persistencia), Recharts, Lucide y Vite PWA (manifest, iconos y service worker con Workbox).

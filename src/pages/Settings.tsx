@@ -1,6 +1,7 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import {
   Check,
+  CheckCircle2,
   Coins,
   Database,
   Download,
@@ -8,16 +9,20 @@ import {
   Moon,
   Palette,
   RotateCcw,
+  Share2,
   ShieldCheck,
+  Smartphone,
   Sparkles,
   Sun,
   Upload,
+  WifiOff,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
 import { CURRENCIES, formatMoney } from '../lib/format'
 import { DEFAULT_SETTINGS } from '../lib/defaults'
 import { todayISO } from '../lib/dates'
+import { useInstallPrompt } from '../lib/useInstallPrompt'
 import { cn } from '../lib/utils'
 import type { AppData, ThemeMode } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -77,11 +82,21 @@ export function Settings() {
   const loadDemo = useStore((state) => state.loadDemo)
   const resetAll = useStore((state) => state.resetAll)
   const toast = useUI((state) => state.toast)
+  const { canInstall, isInstalled, isIOS, install } = useInstallPrompt()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [confirmDemo, setConfirmDemo] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
   const [pendingImport, setPendingImport] = useState<AppData | null>(null)
+
+  const handleInstall = async () => {
+    const outcome = await install()
+    if (outcome === 'accepted') {
+      toast('Bolsillo se instaló correctamente.')
+    } else if (outcome === 'dismissed') {
+      toast('Puedes instalar Bolsillo más tarde desde el menú del navegador.', 'info')
+    }
+  }
 
   const themes: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
     { value: 'light', label: 'Claro', icon: Sun },
@@ -181,7 +196,7 @@ export function Settings() {
         subtitle="Personaliza la apariencia, la moneda y gestiona tus datos."
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <section className="card p-5">
           <div className="flex items-center gap-3">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-soft text-brand">
@@ -265,6 +280,87 @@ export function Settings() {
           </p>
         </section>
       </div>
+
+      <section className="card p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-soft text-brand">
+              <Smartphone size={17} />
+            </span>
+            <div>
+              <h2 className="section-title">Instalar en tu móvil</h2>
+              <p className="text-[11px] text-muted">
+                Úsala como una app, a pantalla completa y sin conexión.
+              </p>
+            </div>
+          </div>
+          {isInstalled && (
+            <span className="inline-flex items-center gap-1.5 self-start rounded-lg bg-income-soft px-2 py-1 text-[10.5px] font-medium text-income">
+              <CheckCircle2 size={12} />
+              Instalada
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-line bg-surface2/60 p-3.5">
+          {isInstalled ? (
+            <div className="flex items-start gap-2.5">
+              <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-income" />
+              <p className="text-[12px] leading-relaxed text-muted">
+                Bolsillo ya está instalada en este dispositivo. Ábrela desde su icono
+                para usarla a pantalla completa y seguir consultando tus datos sin
+                conexión.
+              </p>
+            </div>
+          ) : canInstall ? (
+            <>
+              <p className="text-[12px] leading-relaxed text-muted">
+                Añade Bolsillo a tu pantalla de inicio para abrirla directamente, sin
+                la barra del navegador.
+              </p>
+              <Button size="sm" onClick={handleInstall} className="mt-3 w-full sm:w-auto">
+                <Download size={14} />
+                Instalar Bolsillo
+              </Button>
+            </>
+          ) : isIOS ? (
+            <>
+              <p className="text-[12px] leading-relaxed text-muted">
+                En iPhone o iPad, abre Bolsillo en Safari y toca{' '}
+                <span className="inline-flex items-center gap-1 font-medium text-fg">
+                  <Share2 size={13} />
+                  Compartir
+                </span>{' '}
+                →{' '}
+                <span className="font-medium text-fg">Añadir a pantalla de inicio</span>.
+              </p>
+              <p className="mt-1.5 text-[10.5px] leading-relaxed text-faint">
+                Si usas otro navegador en iOS, también encontrarás esta opción en el
+                menú Compartir.
+              </p>
+            </>
+          ) : (
+            <p className="text-[12px] leading-relaxed text-muted">
+              Abre el menú del navegador y elige{' '}
+              <span className="font-medium text-fg">Instalar aplicación</span> o{' '}
+              <span className="font-medium text-fg">Añadir a pantalla de inicio</span>.
+              En Chrome también puedes usar el icono de instalar de la barra de
+              direcciones.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-3 grid gap-2 text-[11px] text-muted sm:grid-cols-2">
+          <span className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
+            <Check size={13} className="shrink-0 text-income" />
+            Acceso directo desde la pantalla de inicio
+          </span>
+          <span className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
+            <WifiOff size={13} className="shrink-0 text-brand" />
+            Funciona sin conexión
+          </span>
+        </div>
+      </section>
 
       <section className="card p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

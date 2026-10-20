@@ -12,7 +12,7 @@ export function ReferenceDateBar() {
   const isPast = referenceDate < today
 
   return (
-    <div className="sticky top-14 z-20 border-b border-line bg-bg/85 backdrop-blur-xl lg:top-0">
+    <div className="sticky top-[calc(3.5rem_+_env(safe-area-inset-top))] z-20 border-b border-line bg-bg/85 backdrop-blur-xl lg:top-0 lg:pt-[env(safe-area-inset-top)]">
       <div className="mx-auto flex w-full max-w-[1240px] items-center gap-2 px-3 py-2 sm:px-6 lg:px-8">
         <span
           className={cn(
@@ -40,14 +40,14 @@ export function ReferenceDateBar() {
             onChange={(event) => setReferenceDate(event.target.value)}
             aria-label={`Fecha de referencia: ${formatFullDate(referenceDate)}`}
             title="Elige la fecha con la que quieres consultar tus finanzas"
-            className="field h-9 w-[132px] px-2 text-[11.5px] sm:w-[148px] sm:text-[12px]"
+            className="field h-10 w-[132px] px-2 text-[11.5px] sm:w-[148px] sm:text-[12px]"
           />
           <button
             type="button"
             onClick={resetReferenceDate}
             disabled={isToday}
             className={cn(
-              'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-[11.5px] font-medium transition',
+              'inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-[11.5px] font-medium transition',
               isToday
                 ? 'cursor-default bg-surface2 text-faint'
                 : 'border border-brand/25 bg-brand-soft text-brand hover:bg-brand/15',

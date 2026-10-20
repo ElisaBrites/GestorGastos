@@ -84,36 +84,38 @@ export function AppLayout() {
 
   return (
     <div className="min-h-dvh">
-      <div className="fixed inset-y-0 left-0 z-40 hidden w-[252px] lg:block">
+      <div className="fixed inset-y-0 left-0 z-40 hidden w-[252px] bg-surface/80 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] lg:block">
         <Sidebar />
       </div>
 
       <div className="lg:pl-[252px]">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b border-line bg-bg/85 px-3 backdrop-blur-xl lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            className="icon-btn h-9 w-9 border-transparent bg-transparent"
-            aria-label="Abrir menú"
-          >
-            <Menu size={20} />
-          </button>
-          <Link to="/" className="flex items-center gap-2">
-            <span className="gradient-brand grid h-7 w-7 place-items-center rounded-[9px] text-white">
-              <Wallet size={15} strokeWidth={2.3} />
-            </span>
-            <span className="text-[15px] font-semibold tracking-[-0.03em]">Bolsillo</span>
-          </Link>
-          <div className="ml-auto flex items-center gap-1.5">
-            <ThemeToggle className="h-9 w-9 border-transparent bg-transparent" />
+        <header className="sticky top-0 z-30 border-b border-line bg-bg/85 pt-[env(safe-area-inset-top)] backdrop-blur-xl lg:hidden">
+          <div className="flex h-14 items-center gap-2 px-3">
             <button
               type="button"
-              onClick={() => openTransactionModal()}
-              className="gradient-brand grid h-9 w-9 place-items-center rounded-xl text-white shadow-[0_8px_18px_-10px_rgba(99,85,242,0.9)]"
-              aria-label="Nuevo movimiento"
+              onClick={() => setMenuOpen(true)}
+              className="icon-btn h-10 w-10 border-transparent bg-transparent"
+              aria-label="Abrir menú"
             >
-              <Plus size={19} strokeWidth={2.4} />
+              <Menu size={20} />
             </button>
+            <Link to="/" className="flex items-center gap-2">
+              <span className="gradient-brand grid h-7 w-7 place-items-center rounded-[9px] text-white">
+                <Wallet size={15} strokeWidth={2.3} />
+              </span>
+              <span className="text-[15px] font-semibold tracking-[-0.03em]">Bolsillo</span>
+            </Link>
+            <div className="ml-auto flex items-center gap-1.5">
+              <ThemeToggle className="h-10 w-10 border-transparent bg-transparent" />
+              <button
+                type="button"
+                onClick={() => openTransactionModal()}
+                className="gradient-brand grid h-10 w-10 place-items-center rounded-xl text-white shadow-[0_8px_18px_-10px_rgba(99,85,242,0.9)]"
+                aria-label="Nuevo movimiento"
+              >
+                <Plus size={19} strokeWidth={2.4} />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -180,7 +182,7 @@ export function AppLayout() {
             onClick={() => setMenuOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-y-0 left-0 w-[86%] max-w-[310px] animate-drawer-in shadow-2xl">
+          <div className="absolute inset-y-0 left-0 w-[86%] max-w-[310px] animate-drawer-in bg-surface pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] shadow-2xl">
             <Sidebar
               className="w-full bg-surface"
               onNavigate={() => setMenuOpen(false)}

@@ -84,14 +84,24 @@
 
   html {
     -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
     text-rendering: optimizeLegibility;
   }
 
   body {
+    min-height: 100dvh;
     background-color: var(--bg);
     color: var(--fg);
     font-family: var(--font-sans);
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
   }
 
   ::selection {

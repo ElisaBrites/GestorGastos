@@ -678,7 +678,7 @@ export function Stats() {
             <span>{formatMoney(totals.expense, currency)} de gastos</span>
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
             <CombinedCategoryPanel
               kind="expense"
               rows={expenseCategoryTotals}
