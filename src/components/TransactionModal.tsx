@@ -11,7 +11,7 @@ import {
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
 import { walletBalance } from '../lib/calc'
-import { formatFullDate, todayISO } from '../lib/dates'
+import { formatFullDate, formatShortDate, todayISO } from '../lib/dates'
 import { WALLET_TYPE_LABELS } from '../lib/defaults'
 import { currencySymbol, formatMoney, parseAmount } from '../lib/format'
 import { subcategoryVisual } from '../lib/visuals'
@@ -30,6 +30,7 @@ export function TransactionModal() {
   const { open, editId, defaultType } = useUI((state) => state.txModal)
   const close = useUI((state) => state.closeTransactionModal)
   const toast = useUI((state) => state.toast)
+  const referenceDate = useUI((state) => state.referenceDate)
 
   const transactions = useStore((state) => state.transactions)
   const transfers = useStore((state) => state.transfers)
@@ -62,7 +63,7 @@ export function TransactionModal() {
       categories.find((item) => item.type === initialType)
     setType(initialType)
     setAmount(editing ? String(editing.amount).replace('.', ',') : '')
-    setDate(editing?.date ?? todayISO())
+    setDate(editing?.date ?? referenceDate)
     setCategoryId(cat?.id ?? '')
     setSubcategoryId(editing?.subcategoryId ?? '')
     setWalletId(editing?.walletId ?? wallets[0]?.id ?? '')
@@ -294,11 +295,15 @@ export function TransactionModal() {
               />
             </div>
             <p className="mt-1.5 text-[11px] text-faint">
-              Saldo actual de la billetera:{' '}
+              {referenceDate === todayISO()
+                ? 'Saldo actual de la billetera:'
+                : `Saldo al ${formatShortDate(referenceDate)} de la billetera:`}{' '}
               {formatMoney(
                 (() => {
                   const wallet = wallets.find((item) => item.id === walletId)
-                  return wallet ? walletBalance(wallet, transactions, transfers) : 0
+                  return wallet
+                    ? walletBalance(wallet, transactions, transfers, referenceDate)
+                    : 0
                 })(),
                 currency,
               )}

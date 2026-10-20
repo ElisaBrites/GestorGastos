@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   CalendarClock,
   Check,
+  Info,
   Pause,
   Pencil,
   Play,
@@ -42,6 +43,7 @@ export function RecurringPage() {
   const deleteRecurring = useStore((state) => state.deleteRecurring)
   const postRecurringNow = useStore((state) => state.postRecurringNow)
   const toast = useUI((state) => state.toast)
+  const referenceDate = useUI((state) => state.referenceDate)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Recurring | undefined>()
@@ -243,6 +245,17 @@ export function RecurringPage() {
           </Button>
         }
       />
+
+      {referenceDate !== today && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-line bg-surface2/70 px-3.5 py-2.5 text-[11px] leading-relaxed text-muted">
+          <Info size={14} className="mt-0.5 shrink-0 text-brand" />
+          <span>
+            La fecha de referencia global se aplica a saldos, movimientos y
+            estadísticas. Los vencimientos y registros de los fijos siguen el
+            calendario real de hoy.
+          </span>
+        </div>
+      )}
 
       {dueManual.length > 0 && (
         <div className="flex flex-col gap-3 rounded-2xl border border-warn/25 bg-warn-soft px-4 py-3.5 sm:flex-row sm:items-center">

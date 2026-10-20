@@ -13,7 +13,7 @@ import {
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
 import { sumByType, walletBalances, walletIsIncluded } from '../lib/calc'
-import { currentMonthKey, monthKey, todayISO } from '../lib/dates'
+import { formatShortDate, monthKey, todayISO } from '../lib/dates'
 import { WALLET_TYPE_LABELS } from '../lib/defaults'
 import { formatMoney } from '../lib/format'
 import { cn, hexToRgba } from '../lib/utils'
@@ -35,17 +35,18 @@ export function Wallets() {
   const setWalletIncluded = useStore((state) => state.setWalletIncluded)
   const toast = useUI((state) => state.toast)
   const openTransferModal = useUI((state) => state.openTransferModal)
+  const referenceDate = useUI((state) => state.referenceDate)
 
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Wallet | undefined>()
   const [deleting, setDeleting] = useState<Wallet | undefined>()
 
-  const month = currentMonthKey()
-  const today = todayISO()
+  const month = monthKey(referenceDate)
+  const isToday = referenceDate === todayISO()
 
   const balances = useMemo(
-    () => walletBalances(wallets, transactions, transfers),
-    [wallets, transactions, transfers],
+    () => walletBalances(wallets, transactions, transfers, referenceDate),
+    [wallets, transactions, transfers, referenceDate],
   )
   const walletStats = useMemo(() => {
     const map = new Map<string, { income: number; expense: number }>()
@@ -54,12 +55,12 @@ export function Wallets() {
         (tx) =>
           tx.walletId === wallet.id &&
           monthKey(tx.date) === month &&
-          tx.date <= today,
+          tx.date <= referenceDate,
       )
       map.set(wallet.id, sumByType(txs))
     }
     return map
-  }, [wallets, transactions, month, today])
+  }, [wallets, transactions, month, referenceDate])
 
   const includedWallets = wallets.filter(walletIsIncluded)
   const totalBalance = includedWallets.reduce(
@@ -69,19 +70,22 @@ export function Wallets() {
   const monthTotals = useMemo(
     () =>
       sumByType(
-        transactions.filter((tx) => monthKey(tx.date) === month && tx.date <= today),
+        transactions.filter(
+          (tx) => monthKey(tx.date) === month && tx.date <= referenceDate,
+        ),
       ),
-    [transactions, month, today],
+    [transactions, month, referenceDate],
   )
   const recentTransfers = useMemo(
     () =>
-      [...transfers]
+      transfers
+        .filter((transfer) => transfer.date <= referenceDate)
         .sort((a, b) => {
           if (a.date === b.date) return a.createdAt < b.createdAt ? 1 : -1
           return a.date < b.date ? 1 : -1
         })
         .slice(0, 5),
-    [transfers],
+    [transfers, referenceDate],
   )
   const walletMap = useMemo(
     () => new Map(wallets.map((wallet) => [wallet.id, wallet])),
@@ -136,7 +140,7 @@ export function Wallets() {
             </span>
             <div className="min-w-0">
               <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-faint">
-                Balance total
+                {isToday ? 'Balance total' : `Balance al ${formatShortDate(referenceDate)}`}
               </p>
               <p className="mt-0.5 truncate text-[22px] font-semibold leading-tight tracking-[-0.03em] tnum">
                 {formatMoney(totalBalance, currency)}
@@ -273,7 +277,7 @@ export function Wallets() {
 
                 <div className="relative mt-5">
                   <p className="text-[10.5px] font-medium uppercase tracking-[0.08em] text-faint">
-                    Saldo actual
+                    {isToday ? 'Saldo actual' : `Saldo al ${formatShortDate(referenceDate)}`}
                   </p>
                   <p
                     className={cn(
@@ -331,6 +335,7 @@ export function Wallets() {
                 fromWallet={walletMap.get(transfer.fromWalletId)}
                 toWallet={walletMap.get(transfer.toWalletId)}
                 currency={currency}
+                asOf={referenceDate}
                 onClick={() => openTransferModal({ editId: transfer.id })}
               />
             ))}

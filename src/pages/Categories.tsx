@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
-import { currentMonthKey, monthKey } from '../lib/dates'
+import { monthKey } from '../lib/dates'
 import { formatMoney } from '../lib/format'
 import { hexToRgba } from '../lib/utils'
 import { subcategoryVisual } from '../lib/visuals'
@@ -172,21 +172,22 @@ export function Categories() {
   const currency = useStore((state) => state.settings.currency)
   const deleteCategory = useStore((state) => state.deleteCategory)
   const toast = useUI((state) => state.toast)
+  const referenceDate = useUI((state) => state.referenceDate)
 
   const [tab, setTab] = useState<TxType>('expense')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Category | undefined>()
   const [deleting, setDeleting] = useState<Category | undefined>()
 
-  const month = currentMonthKey()
+  const month = monthKey(referenceDate)
   const monthByCategory = useMemo(() => {
     const map = new Map<string, number>()
     for (const tx of transactions) {
-      if (monthKey(tx.date) !== month) continue
+      if (monthKey(tx.date) !== month || tx.date > referenceDate) continue
       map.set(tx.categoryId, (map.get(tx.categoryId) ?? 0) + tx.amount)
     }
     return map
-  }, [transactions, month])
+  }, [transactions, month, referenceDate])
 
   const visible = categories.filter((category) => category.type === tab)
   const expenseCount = categories.filter((category) => category.type === 'expense').length

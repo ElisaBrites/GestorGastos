@@ -1,10 +1,12 @@
 import type { Transaction, Transfer, Wallet } from '../types'
 import { monthKey, todayISO } from './dates'
 
-/** Solo los movimientos con fecha de hoy o anterior forman parte del saldo actual. */
-export function settledTransactions(transactions: Transaction[]) {
-  const today = todayISO()
-  return transactions.filter((tx) => tx.date <= today)
+/**
+ * Solo los movimientos con fecha de referencia o anterior forman parte del saldo.
+ * La fecha de referencia permite consultar la situación financiera de un día concreto.
+ */
+export function settledTransactions(transactions: Transaction[], asOf = todayISO()) {
+  return transactions.filter((tx) => tx.date <= asOf)
 }
 
 export function walletIsIncluded(wallet: Wallet) {
@@ -15,15 +17,15 @@ export function walletBalance(
   wallet: Wallet,
   transactions: Transaction[],
   transfers: Transfer[] = [],
+  asOf = todayISO(),
 ) {
-  const today = todayISO()
   let balance = wallet.initialBalance
   for (const tx of transactions) {
-    if (tx.date > today || tx.walletId !== wallet.id) continue
+    if (tx.date > asOf || tx.walletId !== wallet.id) continue
     balance += tx.type === 'income' ? tx.amount : -tx.amount
   }
   for (const transfer of transfers) {
-    if (transfer.date > today) continue
+    if (transfer.date > asOf) continue
     if (transfer.fromWalletId === wallet.id) balance -= transfer.amount
     if (transfer.toWalletId === wallet.id) balance += transfer.amount
   }
@@ -34,18 +36,18 @@ export function walletBalances(
   wallets: Wallet[],
   transactions: Transaction[],
   transfers: Transfer[] = [],
+  asOf = todayISO(),
 ) {
-  const today = todayISO()
   const balances = new Map<string, number>()
   for (const wallet of wallets) balances.set(wallet.id, wallet.initialBalance)
   for (const tx of transactions) {
-    if (tx.date > today) continue
+    if (tx.date > asOf) continue
     const value = balances.get(tx.walletId)
     if (value === undefined) continue
     balances.set(tx.walletId, value + (tx.type === 'income' ? tx.amount : -tx.amount))
   }
   for (const transfer of transfers) {
-    if (transfer.date > today) continue
+    if (transfer.date > asOf) continue
     const from = balances.get(transfer.fromWalletId)
     if (from !== undefined) balances.set(transfer.fromWalletId, from - transfer.amount)
     const to = balances.get(transfer.toWalletId)

@@ -9,7 +9,7 @@ import {
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
 import { walletBalance } from '../lib/calc'
-import { formatFullDate, todayISO } from '../lib/dates'
+import { formatFullDate, formatShortDate, todayISO } from '../lib/dates'
 import { WALLET_TYPE_LABELS } from '../lib/defaults'
 import { currencySymbol, formatMoney, parseAmount } from '../lib/format'
 import { Button } from './ui/Button'
@@ -22,6 +22,7 @@ export function TransferModal() {
   const { open, editId } = useUI((state) => state.transferModal)
   const close = useUI((state) => state.closeTransferModal)
   const toast = useUI((state) => state.toast)
+  const referenceDate = useUI((state) => state.referenceDate)
 
   const wallets = useStore((state) => state.wallets)
   const transactions = useStore((state) => state.transactions)
@@ -46,7 +47,7 @@ export function TransferModal() {
     const first = wallets[0]?.id ?? ''
     const second = wallets.find((wallet) => wallet.id !== first)?.id ?? ''
     setAmount(editing ? String(editing.amount).replace('.', ',') : '')
-    setDate(editing?.date ?? todayISO())
+    setDate(editing?.date ?? referenceDate)
     setFromWalletId(editing?.fromWalletId ?? first)
     setToWalletId(editing?.toWalletId ?? second)
     setNote(editing?.note ?? '')
@@ -58,9 +59,11 @@ export function TransferModal() {
   const fromWallet = wallets.find((wallet) => wallet.id === fromWalletId)
   const toWallet = wallets.find((wallet) => wallet.id === toWalletId)
   const fromBalance = fromWallet
-    ? walletBalance(fromWallet, transactions, transfers)
+    ? walletBalance(fromWallet, transactions, transfers, referenceDate)
     : 0
-  const toBalance = toWallet ? walletBalance(toWallet, transactions, transfers) : 0
+  const toBalance = toWallet
+    ? walletBalance(toWallet, transactions, transfers, referenceDate)
+    : 0
   const scheduled = Boolean(date) && date > todayISO()
   const symbol = currencySymbol(currency)
   const formId = 'transfer-form'
@@ -205,7 +208,10 @@ export function TransferModal() {
             </div>
             {fromWallet && (
               <p className="mt-1.5 text-[11px] text-faint">
-                Saldo actual en {fromWallet.name}: {formatMoney(fromBalance, currency)}
+                {referenceDate === todayISO()
+                  ? `Saldo actual en ${fromWallet.name}:`
+                  : `Saldo al ${formatShortDate(referenceDate)} en ${fromWallet.name}:`}{' '}
+                {formatMoney(fromBalance, currency)}
               </p>
             )}
           </div>

@@ -1,7 +1,7 @@
 import { ArrowLeftRight } from 'lucide-react'
 import type { Transfer, Wallet } from '../types'
 import { formatMoney } from '../lib/format'
-import { formatShortDate, isFutureDate } from '../lib/dates'
+import { formatShortDate, todayISO } from '../lib/dates'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/Badge'
 
@@ -12,6 +12,7 @@ export function TransferRow({
   currency,
   onClick,
   compact = false,
+  asOf,
 }: {
   transfer: Transfer
   fromWallet?: Wallet
@@ -19,8 +20,10 @@ export function TransferRow({
   currency: string
   onClick?: () => void
   compact?: boolean
+  /** Fecha de referencia: lo posterior a ella se muestra como programado. */
+  asOf?: string
 }) {
-  const scheduled = isFutureDate(transfer.date)
+  const scheduled = transfer.date > (asOf ?? todayISO())
 
   return (
     <button

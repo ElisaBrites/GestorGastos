@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   ArrowLeftRight,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Info,
   Plus,
   Search,
   SlidersHorizontal,
@@ -13,7 +14,8 @@ import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
 import { sumByType } from '../lib/calc'
 import {
-  currentMonthKey,
+  formatFullDate,
+  formatWeekdayLongDate,
   monthKey,
   monthLabel,
   relativeGroupLabel,
@@ -51,13 +53,23 @@ export function Transactions() {
   const currency = useStore((state) => state.settings.currency)
   const openTransactionModal = useUI((state) => state.openTransactionModal)
   const openTransferModal = useUI((state) => state.openTransferModal)
+  const referenceDate = useUI((state) => state.referenceDate)
 
   const [search, setSearch] = useState('')
   const [type, setType] = useState<TypeFilter>('all')
   const [walletId, setWalletId] = useState('')
   const [categoryId, setCategoryId] = useState('')
-  const [month, setMonth] = useState<string>(currentMonthKey())
+  const [month, setMonth] = useState<string>(() => monthKey(referenceDate))
   const [allTime, setAllTime] = useState(false)
+
+  const today = todayISO()
+  /** En vistas actuales o futuras se pueden previsualizar los programados. */
+  const showBeyondReference = referenceDate >= today
+
+  useEffect(() => {
+    const nextMonth = monthKey(referenceDate)
+    setMonth((current) => (current === nextMonth ? current : nextMonth))
+  }, [referenceDate])
 
   const categoryMap = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
@@ -74,6 +86,7 @@ export function Transactions() {
       if (type !== 'all' && tx.type !== type) return false
       if (walletId && tx.walletId !== walletId) return false
       if (categoryId && tx.categoryId !== categoryId) return false
+      if (!showBeyondReference && tx.date > referenceDate) return false
       if (!allTime && monthKey(tx.date) !== month) return false
       if (!term) return true
       const category = categoryMap.get(tx.categoryId)
@@ -91,7 +104,19 @@ export function Transactions() {
         .toLowerCase()
       return haystack.includes(term)
     })
-  }, [transactions, type, walletId, categoryId, allTime, month, search, categoryMap, walletMap])
+  }, [
+    transactions,
+    type,
+    walletId,
+    categoryId,
+    allTime,
+    month,
+    search,
+    categoryMap,
+    walletMap,
+    showBeyondReference,
+    referenceDate,
+  ])
 
   const filteredTransfers = useMemo(() => {
     if (type !== 'all' || categoryId) return []
@@ -104,6 +129,7 @@ export function Transactions() {
       ) {
         return false
       }
+      if (!showBeyondReference && transfer.date > referenceDate) return false
       if (!allTime && monthKey(transfer.date) !== month) return false
       if (!term) return true
       const from = walletMap.get(transfer.fromWalletId)?.name
@@ -120,16 +146,26 @@ export function Transactions() {
         .toLowerCase()
       return haystack.includes(term)
     })
-  }, [transfers, type, categoryId, walletId, allTime, month, search, walletMap])
+  }, [
+    transfers,
+    type,
+    categoryId,
+    walletId,
+    allTime,
+    month,
+    search,
+    walletMap,
+    showBeyondReference,
+    referenceDate,
+  ])
 
-  const today = todayISO()
   const totals = useMemo(
-    () => sumByType(filtered.filter((tx) => tx.date <= today)),
-    [filtered, today],
+    () => sumByType(filtered.filter((tx) => tx.date <= referenceDate)),
+    [filtered, referenceDate],
   )
   const scheduledCount =
-    filtered.filter((tx) => tx.date > today).length +
-    filteredTransfers.filter((transfer) => transfer.date > today).length
+    filtered.filter((tx) => tx.date > referenceDate).length +
+    filteredTransfers.filter((transfer) => transfer.date > referenceDate).length
 
   const grouped = useMemo(() => {
     const items: MovementItem[] = [
@@ -175,7 +211,7 @@ export function Transactions() {
     setWalletId('')
     setCategoryId('')
     setAllTime(false)
-    setMonth(currentMonthKey())
+    setMonth(monthKey(referenceDate))
   }
 
   const changeType = (next: TypeFilter) => {
@@ -189,7 +225,7 @@ export function Transactions() {
   const moveMonth = (delta: number) => {
     if (allTime) {
       setAllTime(false)
-      setMonth(currentMonthKey())
+      setMonth(monthKey(referenceDate))
       return
     }
     setMonth((current) => shiftMonthKey(current, delta))
@@ -218,6 +254,24 @@ export function Transactions() {
           </>
         }
       />
+
+      {referenceDate !== today && (
+        <div
+          className={cn(
+            'flex items-start gap-2.5 rounded-xl border px-3.5 py-2.5 text-[11px] leading-relaxed',
+            referenceDate < today
+              ? 'border-warn/20 bg-warn-soft text-warn'
+              : 'border-brand/20 bg-brand-soft text-brand',
+          )}
+        >
+          <Info size={14} className="mt-0.5 shrink-0" />
+          <span>
+            {referenceDate < today
+              ? `Vista histórica: solo se muestran los movimientos hasta el ${formatFullDate(referenceDate)}.`
+              : `Vista proyectada: los totales incluyen los movimientos programados hasta el ${formatFullDate(referenceDate)}.`}
+          </span>
+        </div>
+      )}
 
       <div className="card p-3 sm:p-4">
         <div className="flex flex-col gap-2.5">
@@ -394,7 +448,11 @@ export function Transactions() {
                 <div key={date}>
                   <div className="flex items-center justify-between gap-3 border-b border-line bg-surface2/60 px-4 py-2">
                     <p className="text-[11.5px] font-semibold text-fg">
-                      {relativeGroupLabel(date)}
+                      {date > referenceDate
+                        ? 'Programado'
+                        : referenceDate === today
+                          ? relativeGroupLabel(date, today)
+                          : formatWeekdayLongDate(date)}
                     </p>
                     <div className="flex items-center gap-3 text-[10.5px] tnum">
                       {day.income > 0 && (
@@ -418,6 +476,7 @@ export function Transactions() {
                           category={categoryMap.get(item.tx.categoryId)}
                           wallet={walletMap.get(item.tx.walletId)}
                           currency={currency}
+                          asOf={referenceDate}
                           onClick={() => openTransactionModal({ editId: item.id })}
                         />
                       ) : (
@@ -427,6 +486,7 @@ export function Transactions() {
                           fromWallet={walletMap.get(item.transfer.fromWalletId)}
                           toWallet={walletMap.get(item.transfer.toWalletId)}
                           currency={currency}
+                          asOf={referenceDate}
                           onClick={() => openTransferModal({ editId: item.id })}
                         />
                       ),

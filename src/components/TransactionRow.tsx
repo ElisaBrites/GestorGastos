@@ -1,7 +1,7 @@
 import { Repeat } from 'lucide-react'
 import type { Category, Transaction, Wallet } from '../types'
 import { formatMoney } from '../lib/format'
-import { formatShortDate, isFutureDate } from '../lib/dates'
+import { formatShortDate, todayISO } from '../lib/dates'
 import { subcategoryVisual } from '../lib/visuals'
 import { cn } from '../lib/utils'
 import { Badge } from './ui/Badge'
@@ -14,6 +14,7 @@ export function TransactionRow({
   currency,
   onClick,
   compact = false,
+  asOf,
 }: {
   transaction: Transaction
   category?: Category
@@ -21,12 +22,14 @@ export function TransactionRow({
   currency: string
   onClick?: () => void
   compact?: boolean
+  /** Fecha de referencia: lo posterior a ella se muestra como programado. */
+  asOf?: string
 }) {
   const sub = category?.subcategories.find((item) => item.id === transaction.subcategoryId)
   const visual = subcategoryVisual(sub, category)
   const title = sub?.name ?? category?.name ?? 'Sin categoría'
   const meta = [category?.name, wallet?.name].filter(Boolean).join(' · ')
-  const scheduled = isFutureDate(transaction.date)
+  const scheduled = transaction.date > (asOf ?? todayISO())
 
   return (
     <button

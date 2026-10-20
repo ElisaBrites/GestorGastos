@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { TxType } from '../types'
+import { todayISO } from '../lib/dates'
 import { uid } from '../lib/utils'
 
 export type ToastTone = 'success' | 'error' | 'info'
@@ -22,6 +23,10 @@ interface TransferModalState {
 }
 
 interface UIStore {
+  /** Fecha global con la que se consulta toda la app. */
+  referenceDate: string
+  setReferenceDate: (date: string) => void
+  resetReferenceDate: () => void
   txModal: TransactionModalState
   openTransactionModal: (options?: { editId?: string; type?: TxType }) => void
   closeTransactionModal: () => void
@@ -34,6 +39,9 @@ interface UIStore {
 }
 
 export const useUI = create<UIStore>()((set, get) => ({
+  referenceDate: todayISO(),
+  setReferenceDate: (date) => set({ referenceDate: date || todayISO() }),
+  resetReferenceDate: () => set({ referenceDate: todayISO() }),
   txModal: { open: false },
   openTransactionModal: (options) =>
     set({

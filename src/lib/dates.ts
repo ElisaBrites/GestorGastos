@@ -68,6 +68,12 @@ export function formatWeekdayDate(iso: string) {
   return `${WEEKDAYS[date.getDay()]}, ${date.getDate()} ${MONTHS_SHORT[date.getMonth()]}`
 }
 
+export function formatWeekdayLongDate(iso: string) {
+  const date = parseDate(iso)
+  const weekday = WEEKDAYS[date.getDay()]
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${date.getDate()} de ${MONTHS[date.getMonth()]}`
+}
+
 export function monthKey(iso: string) {
   return iso.slice(0, 7)
 }
@@ -134,14 +140,18 @@ export function advanceByFrequency(iso: string, frequency: Frequency) {
   }
 }
 
-export function daysFromToday(iso: string) {
-  const today = parseDate(todayISO()).getTime()
+export function daysFrom(iso: string, reference = todayISO()) {
+  const base = parseDate(reference).getTime()
   const target = parseDate(iso).getTime()
-  return Math.round((target - today) / 86_400_000)
+  return Math.round((target - base) / 86_400_000)
 }
 
-export function relativeDate(iso: string) {
-  const diff = daysFromToday(iso)
+export function daysFromToday(iso: string) {
+  return daysFrom(iso, todayISO())
+}
+
+export function relativeDate(iso: string, reference = todayISO()) {
+  const diff = daysFrom(iso, reference)
   if (diff === 0) return 'Hoy'
   if (diff === 1) return 'Mañana'
   if (diff === -1) return 'Ayer'
@@ -153,13 +163,12 @@ export function relativeDate(iso: string) {
   return formatShortDate(iso)
 }
 
-export function relativeGroupLabel(iso: string) {
-  const diff = daysFromToday(iso)
+export function relativeGroupLabel(iso: string, reference = todayISO()) {
+  const diff = daysFrom(iso, reference)
   if (diff === 0) return 'Hoy'
   if (diff === -1) return 'Ayer'
   if (diff > 0) return 'Programado'
-  const date = parseDate(iso)
-  return `${WEEKDAYS[date.getDay()].charAt(0).toUpperCase()}${WEEKDAYS[date.getDay()].slice(1)}, ${date.getDate()} de ${MONTHS[date.getMonth()]}`
+  return formatWeekdayLongDate(iso)
 }
 
 export function lastNMonthKeys(n: number, endKey = currentMonthKey()) {

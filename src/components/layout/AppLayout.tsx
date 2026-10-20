@@ -20,6 +20,7 @@ import { ThemeToggle } from '../ui/ThemeToggle'
 import { Toaster } from '../ui/Toaster'
 import { TransactionModal } from '../TransactionModal'
 import { TransferModal } from '../TransferModal'
+import { ReferenceDateBar } from './ReferenceDateBar'
 
 const mobileNav = [
   { to: '/', label: 'Inicio', icon: Home },
@@ -117,6 +118,7 @@ export function AppLayout() {
         </header>
 
         <main className="grid-fade min-h-dvh">
+          <ReferenceDateBar />
           <Outlet />
         </main>
       </div>

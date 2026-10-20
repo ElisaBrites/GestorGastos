@@ -23,7 +23,6 @@ import {
   walletIsIncluded,
 } from '../lib/calc'
 import {
-  currentMonthKey,
   lastNMonthKeys,
   monthKey,
   monthLabel,
@@ -121,17 +120,23 @@ export function Dashboard() {
   const openTransactionModal = useUI((state) => state.openTransactionModal)
   const openTransferModal = useUI((state) => state.openTransferModal)
   const toast = useUI((state) => state.toast)
+  const referenceDate = useUI((state) => state.referenceDate)
 
-  const month = currentMonthKey()
+  const month = monthKey(referenceDate)
   const prevKey = shiftMonthKey(month, -1)
   const today = todayISO()
+  /** Los programados siempre son posteriores a hoy y a la fecha consultada. */
+  const scheduleCutoff = referenceDate > today ? referenceDate : today
 
   const categoryMap = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
   )
 
-  const settled = useMemo(() => settledTransactions(transactions), [transactions])
+  const settled = useMemo(
+    () => settledTransactions(transactions, referenceDate),
+    [transactions, referenceDate],
+  )
   const monthTransactions = useMemo(
     () => settled.filter((tx) => monthKey(tx.date) === month),
     [settled, month],
@@ -142,8 +147,8 @@ export function Dashboard() {
     [settled, prevKey],
   )
   const balances = useMemo(
-    () => walletBalances(wallets, transactions, transfers),
-    [wallets, transactions, transfers],
+    () => walletBalances(wallets, transactions, transfers, referenceDate),
+    [wallets, transactions, transfers, referenceDate],
   )
   const includedWallets = useMemo(() => wallets.filter(walletIsIncluded), [wallets])
   const totalBalance = useMemo(
@@ -154,13 +159,14 @@ export function Dashboard() {
   const monthMovementCount =
     monthTransactions.length +
     transfers.filter(
-      (transfer) => transfer.date <= today && monthKey(transfer.date) === month,
+      (transfer) =>
+        transfer.date <= referenceDate && monthKey(transfer.date) === month,
     ).length
 
   const scheduledMovements = useMemo(() => {
     const items: MovementItem[] = [
       ...transactions
-        .filter((tx) => tx.date > today)
+        .filter((tx) => tx.date > scheduleCutoff)
         .map((tx) => ({
           kind: 'tx' as const,
           date: tx.date,
@@ -168,7 +174,7 @@ export function Dashboard() {
           tx,
         })),
       ...transfers
-        .filter((transfer) => transfer.date > today)
+        .filter((transfer) => transfer.date > scheduleCutoff)
         .map((transfer) => ({
           kind: 'transfer' as const,
           date: transfer.date,
@@ -177,7 +183,7 @@ export function Dashboard() {
         })),
     ]
     return items.sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 4)
-  }, [transactions, transfers, today])
+  }, [transactions, transfers, scheduleCutoff])
 
   const expenseByCategory = useMemo(() => {
     const totalsMap = new Map<string, number>()
@@ -208,7 +214,7 @@ export function Dashboard() {
 
   const cashflow = useMemo<CashflowPoint[]>(
     () =>
-      lastNMonthKeys(6).map((key) => {
+      lastNMonthKeys(6, month).map((key) => {
         const point = totalsForMonth(settled, key)
         return {
           key,
@@ -217,7 +223,7 @@ export function Dashboard() {
           expense: point.expense,
         }
       }),
-    [settled],
+    [settled, month],
   )
 
   const cashflowSummary = useMemo(() => {
@@ -244,7 +250,7 @@ export function Dashboard() {
         tx,
       })),
       ...transfers
-        .filter((transfer) => transfer.date <= today)
+        .filter((transfer) => transfer.date <= referenceDate)
         .map((transfer) => ({
           kind: 'transfer' as const,
           date: transfer.date,
@@ -258,7 +264,7 @@ export function Dashboard() {
         return a.date < b.date ? 1 : -1
       })
       .slice(0, 6)
-  }, [settled, transfers, today])
+  }, [settled, transfers, referenceDate])
 
   const upcoming = useMemo(
     () =>
@@ -540,6 +546,7 @@ export function Dashboard() {
                   <TransactionRow
                     key={item.tx.id}
                     transaction={item.tx}
+                    asOf={referenceDate}
                     category={categoryMap.get(item.tx.categoryId)}
                     wallet={wallets.find((wallet) => wallet.id === item.tx.walletId)}
                     currency={currency}
@@ -549,6 +556,7 @@ export function Dashboard() {
                   <TransferRow
                     key={item.transfer.id}
                     transfer={item.transfer}
+                    asOf={referenceDate}
                     fromWallet={wallets.find(
                       (wallet) => wallet.id === item.transfer.fromWalletId,
                     )}
@@ -648,7 +656,7 @@ export function Dashboard() {
             </div>
           </section>
 
-          {scheduledMovements.length > 0 && (
+          {referenceDate >= today && scheduledMovements.length > 0 && (
             <section className="card p-5">
               <SectionHeader
                 title="Movimientos programados"
@@ -669,6 +677,7 @@ export function Dashboard() {
                     <TransactionRow
                       key={item.tx.id}
                       transaction={item.tx}
+                      asOf={referenceDate}
                       category={categoryMap.get(item.tx.categoryId)}
                       wallet={wallets.find((wallet) => wallet.id === item.tx.walletId)}
                       currency={currency}
@@ -679,6 +688,7 @@ export function Dashboard() {
                     <TransferRow
                       key={item.transfer.id}
                       transfer={item.transfer}
+                      asOf={referenceDate}
                       fromWallet={wallets.find(
                         (wallet) => wallet.id === item.transfer.fromWalletId,
                       )}
@@ -698,6 +708,11 @@ export function Dashboard() {
           <section className="card p-5">
             <SectionHeader
               title="Próximos fijos"
+              subtitle={
+                referenceDate !== today
+                  ? 'Calendario real, independiente de la fecha de referencia'
+                  : undefined
+              }
               action={
                 <Link
                   to="/fijos"
