@@ -16,9 +16,11 @@ import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
 import {
   percentChange,
+  settledTransactions,
   sumByType,
   totalsForMonth,
   walletBalances,
+  walletIsIncluded,
 } from '../lib/calc'
 import {
   currentMonthKey,
@@ -35,19 +37,24 @@ import {
   formatSigned,
 } from '../lib/format'
 import { cn } from '../lib/utils'
-import type { Transaction } from '../types'
+import type { Transaction, Transfer } from '../types'
 import { PageHeader, SectionHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Badge } from '../components/ui/Badge'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { EmptyState } from '../components/ui/EmptyState'
 import { TransactionRow } from '../components/TransactionRow'
+import { TransferRow } from '../components/TransferRow'
 import {
   CashflowChart,
   type CashflowPoint,
 } from '../components/charts/CashflowChart'
 import { CategoryDonut } from '../components/charts/CategoryDonut'
 import { ChartLegend } from '../components/charts/ChartKit'
+
+type MovementItem =
+  | { kind: 'tx'; date: string; createdAt: string; tx: Transaction }
+  | { kind: 'transfer'; date: string; createdAt: string; transfer: Transfer }
 
 function DeltaBadge({ change, invert = false }: { change: number | null; invert?: boolean }) {
   if (change === null) {
@@ -107,10 +114,12 @@ export function Dashboard() {
   const wallets = useStore((state) => state.wallets)
   const categories = useStore((state) => state.categories)
   const transactions = useStore((state) => state.transactions)
+  const transfers = useStore((state) => state.transfers)
   const recurring = useStore((state) => state.recurring)
   const currency = useStore((state) => state.settings.currency)
   const loadDemo = useStore((state) => state.loadDemo)
   const openTransactionModal = useUI((state) => state.openTransactionModal)
+  const openTransferModal = useUI((state) => state.openTransferModal)
   const toast = useUI((state) => state.toast)
 
   const month = currentMonthKey()
@@ -122,23 +131,53 @@ export function Dashboard() {
     [categories],
   )
 
+  const settled = useMemo(() => settledTransactions(transactions), [transactions])
   const monthTransactions = useMemo(
-    () => transactions.filter((tx) => monthKey(tx.date) === month),
-    [transactions, month],
+    () => settled.filter((tx) => monthKey(tx.date) === month),
+    [settled, month],
   )
   const totals = useMemo(() => sumByType(monthTransactions), [monthTransactions])
   const prevTotals = useMemo(
-    () => totalsForMonth(transactions, prevKey),
-    [transactions, prevKey],
+    () => totalsForMonth(settled, prevKey),
+    [settled, prevKey],
   )
   const balances = useMemo(
-    () => walletBalances(wallets, transactions),
-    [wallets, transactions],
+    () => walletBalances(wallets, transactions, transfers),
+    [wallets, transactions, transfers],
   )
+  const includedWallets = useMemo(() => wallets.filter(walletIsIncluded), [wallets])
   const totalBalance = useMemo(
-    () => wallets.reduce((sum, wallet) => sum + (balances.get(wallet.id) ?? 0), 0),
-    [wallets, balances],
+    () =>
+      includedWallets.reduce((sum, wallet) => sum + (balances.get(wallet.id) ?? 0), 0),
+    [includedWallets, balances],
   )
+  const monthMovementCount =
+    monthTransactions.length +
+    transfers.filter(
+      (transfer) => transfer.date <= today && monthKey(transfer.date) === month,
+    ).length
+
+  const scheduledMovements = useMemo(() => {
+    const items: MovementItem[] = [
+      ...transactions
+        .filter((tx) => tx.date > today)
+        .map((tx) => ({
+          kind: 'tx' as const,
+          date: tx.date,
+          createdAt: tx.createdAt,
+          tx,
+        })),
+      ...transfers
+        .filter((transfer) => transfer.date > today)
+        .map((transfer) => ({
+          kind: 'transfer' as const,
+          date: transfer.date,
+          createdAt: transfer.createdAt,
+          transfer,
+        })),
+    ]
+    return items.sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 4)
+  }, [transactions, transfers, today])
 
   const expenseByCategory = useMemo(() => {
     const totalsMap = new Map<string, number>()
@@ -170,7 +209,7 @@ export function Dashboard() {
   const cashflow = useMemo<CashflowPoint[]>(
     () =>
       lastNMonthKeys(6).map((key) => {
-        const point = totalsForMonth(transactions, key)
+        const point = totalsForMonth(settled, key)
         return {
           key,
           label: monthLabel(key, true).slice(0, 3),
@@ -178,7 +217,7 @@ export function Dashboard() {
           expense: point.expense,
         }
       }),
-    [transactions],
+    [settled],
   )
 
   const cashflowSummary = useMemo(() => {
@@ -196,16 +235,30 @@ export function Dashboard() {
     }
   }, [cashflow])
 
-  const recent = useMemo(
-    () =>
-      [...transactions]
-        .sort((a, b) => {
-          if (a.date === b.date) return a.createdAt < b.createdAt ? 1 : -1
-          return a.date < b.date ? 1 : -1
-        })
-        .slice(0, 6),
-    [transactions],
-  )
+  const recentMovements = useMemo(() => {
+    const items: MovementItem[] = [
+      ...settled.map((tx) => ({
+        kind: 'tx' as const,
+        date: tx.date,
+        createdAt: tx.createdAt,
+        tx,
+      })),
+      ...transfers
+        .filter((transfer) => transfer.date <= today)
+        .map((transfer) => ({
+          kind: 'transfer' as const,
+          date: transfer.date,
+          createdAt: transfer.createdAt,
+          transfer,
+        })),
+    ]
+    return items
+      .sort((a, b) => {
+        if (a.date === b.date) return a.createdAt < b.createdAt ? 1 : -1
+        return a.date < b.date ? 1 : -1
+      })
+      .slice(0, 6)
+  }, [settled, transfers, today])
 
   const upcoming = useMemo(
     () =>
@@ -225,7 +278,7 @@ export function Dashboard() {
       <PageHeader
         eyebrow="Resumen general"
         title="Tus finanzas, de un vistazo"
-        subtitle={`${monthLabel(month)} · ${wallets.length} billetera${wallets.length === 1 ? '' : 's'} · ${monthTransactions.length} movimiento${monthTransactions.length === 1 ? '' : 's'} este mes`}
+        subtitle={`${monthLabel(month)} · ${wallets.length} billetera${wallets.length === 1 ? '' : 's'} · ${monthMovementCount} movimiento${monthMovementCount === 1 ? '' : 's'} este mes`}
         actions={
           <>
             <Link to="/estadisticas">
@@ -243,7 +296,7 @@ export function Dashboard() {
         }
       />
 
-      {transactions.length === 0 && (
+      {transactions.length === 0 && transfers.length === 0 && (
         <div className="relative overflow-hidden rounded-2xl border border-brand/20 bg-brand-soft p-5 sm:p-6">
           <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full border-[20px] border-brand/10" />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -294,7 +347,9 @@ export function Dashboard() {
           </p>
           <div className="relative mt-4 flex flex-wrap items-center gap-1.5">
             <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10.5px] font-medium text-white/75">
-              {wallets.length} billetera{wallets.length === 1 ? '' : 's'}
+              {includedWallets.length === wallets.length
+                ? `${wallets.length} billetera${wallets.length === 1 ? '' : 's'}`
+                : `${includedWallets.length} de ${wallets.length} billeteras`}
             </span>
             <span
               className={cn(
@@ -478,24 +533,39 @@ export function Dashboard() {
               </Link>
             }
           />
-          {recent.length > 0 ? (
+          {recentMovements.length > 0 ? (
             <div className="mt-2 divide-y divide-line">
-              {recent.map((tx: Transaction) => (
-                <TransactionRow
-                  key={tx.id}
-                  transaction={tx}
-                  category={categoryMap.get(tx.categoryId)}
-                  wallet={wallets.find((wallet) => wallet.id === tx.walletId)}
-                  currency={currency}
-                  onClick={() => openTransactionModal({ editId: tx.id })}
-                />
-              ))}
+              {recentMovements.map((item) =>
+                item.kind === 'tx' ? (
+                  <TransactionRow
+                    key={item.tx.id}
+                    transaction={item.tx}
+                    category={categoryMap.get(item.tx.categoryId)}
+                    wallet={wallets.find((wallet) => wallet.id === item.tx.walletId)}
+                    currency={currency}
+                    onClick={() => openTransactionModal({ editId: item.tx.id })}
+                  />
+                ) : (
+                  <TransferRow
+                    key={item.transfer.id}
+                    transfer={item.transfer}
+                    fromWallet={wallets.find(
+                      (wallet) => wallet.id === item.transfer.fromWalletId,
+                    )}
+                    toWallet={wallets.find(
+                      (wallet) => wallet.id === item.transfer.toWalletId,
+                    )}
+                    currency={currency}
+                    onClick={() => openTransferModal({ editId: item.transfer.id })}
+                  />
+                ),
+              )}
             </div>
           ) : (
             <EmptyState
               icon={<ArrowDownLeft size={20} />}
               title="Todavía no hay movimientos"
-              description="Cuando registres un gasto o ingreso aparecerá aquí."
+              description="Cuando registres un gasto, ingreso o transferencia aparecerá aquí."
               action={
                 <Button size="sm" onClick={() => openTransactionModal()}>
                   <Plus size={14} />
@@ -511,13 +581,23 @@ export function Dashboard() {
             <SectionHeader
               title="Billeteras"
               action={
-                <Link
-                  to="/billeteras"
-                  className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand transition hover:gap-1.5"
-                >
-                  Gestionar
-                  <ArrowRight size={13} />
-                </Link>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => openTransferModal()}
+                    disabled={wallets.length < 2}
+                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand transition hover:gap-1.5 disabled:opacity-45"
+                  >
+                    Transferir
+                  </button>
+                  <Link
+                    to="/billeteras"
+                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand transition hover:gap-1.5"
+                  >
+                    Gestionar
+                    <ArrowRight size={13} />
+                  </Link>
+                </div>
               }
             />
             <div className="mt-3 space-y-1">
@@ -535,7 +615,7 @@ export function Dashboard() {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[12.5px] font-medium text-fg">{wallet.name}</p>
-                    <p className="text-[10.5px] capitalize text-faint">
+                    <p className="text-[10.5px] text-faint">
                       {wallet.type === 'bank'
                         ? 'Cuenta bancaria'
                         : wallet.type === 'card'
@@ -547,9 +627,15 @@ export function Dashboard() {
                               : wallet.type === 'investment'
                                 ? 'Inversión'
                                 : 'Otra'}
+                      {!walletIsIncluded(wallet) && ' · Fuera del total'}
                     </p>
                   </div>
-                  <p className="tnum text-[12.5px] font-semibold text-fg">
+                  <p
+                    className={cn(
+                      'tnum text-[12.5px] font-semibold',
+                      walletIsIncluded(wallet) ? 'text-fg' : 'text-muted',
+                    )}
+                  >
                     {formatMoney(balances.get(wallet.id) ?? 0, currency)}
                   </p>
                 </Link>
@@ -561,6 +647,53 @@ export function Dashboard() {
               )}
             </div>
           </section>
+
+          {scheduledMovements.length > 0 && (
+            <section className="card p-5">
+              <SectionHeader
+                title="Movimientos programados"
+                subtitle="Se contabilizarán al llegar su fecha"
+                action={
+                  <Link
+                    to="/movimientos"
+                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand transition hover:gap-1.5"
+                  >
+                    Ver todos
+                    <ArrowRight size={13} />
+                  </Link>
+                }
+              />
+              <div className="mt-2 space-y-1">
+                {scheduledMovements.map((item) =>
+                  item.kind === 'tx' ? (
+                    <TransactionRow
+                      key={item.tx.id}
+                      transaction={item.tx}
+                      category={categoryMap.get(item.tx.categoryId)}
+                      wallet={wallets.find((wallet) => wallet.id === item.tx.walletId)}
+                      currency={currency}
+                      compact
+                      onClick={() => openTransactionModal({ editId: item.tx.id })}
+                    />
+                  ) : (
+                    <TransferRow
+                      key={item.transfer.id}
+                      transfer={item.transfer}
+                      fromWallet={wallets.find(
+                        (wallet) => wallet.id === item.transfer.fromWalletId,
+                      )}
+                      toWallet={wallets.find(
+                        (wallet) => wallet.id === item.transfer.toWalletId,
+                      )}
+                      currency={currency}
+                      compact
+                      onClick={() => openTransferModal({ editId: item.transfer.id })}
+                    />
+                  ),
+                )}
+              </div>
+            </section>
+          )}
 
           <section className="card p-5">
             <SectionHeader

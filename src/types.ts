@@ -9,6 +9,10 @@ export type ThemeMode = 'light' | 'dark' | 'system'
 export interface Subcategory {
   id: string
   name: string
+  /** Icono propio; si falta, se hereda el de la categoría. */
+  icon?: string
+  /** Color propio; si falta, se hereda el de la categoría. */
+  color?: string
 }
 
 export interface Category {
@@ -27,6 +31,8 @@ export interface Wallet {
   icon: string
   color: string
   initialBalance: number
+  /** Si es false, la billetera no suma en el balance total. */
+  includeInTotal?: boolean
   createdAt: string
 }
 
@@ -40,6 +46,16 @@ export interface Transaction {
   walletId: string
   note?: string
   recurringId?: string
+  createdAt: string
+}
+
+export interface Transfer {
+  id: string
+  amount: number
+  date: string
+  fromWalletId: string
+  toWalletId: string
+  note?: string
   createdAt: string
 }
 
@@ -69,6 +85,7 @@ export interface AppData {
   wallets: Wallet[]
   categories: Category[]
   transactions: Transaction[]
+  transfers: Transfer[]
   recurring: Recurring[]
   settings: Settings
 }
@@ -97,10 +114,25 @@ export interface CategoryInput {
   color: string
 }
 
+export interface SubcategoryInput {
+  name: string
+  icon?: string
+  color?: string
+}
+
 export interface WalletInput {
   name: string
   type: WalletType
   icon: string
   color: string
   initialBalance: number
+  includeInTotal?: boolean
+}
+
+export interface TransferInput {
+  amount: number
+  date: string
+  fromWalletId: string
+  toWalletId: string
+  note?: string
 }

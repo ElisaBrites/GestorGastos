@@ -19,6 +19,7 @@ import { Sidebar } from './Sidebar'
 import { ThemeToggle } from '../ui/ThemeToggle'
 import { Toaster } from '../ui/Toaster'
 import { TransactionModal } from '../TransactionModal'
+import { TransferModal } from '../TransferModal'
 
 const mobileNav = [
   { to: '/', label: 'Inicio', icon: Home },
@@ -188,6 +189,7 @@ export function AppLayout() {
       )}
 
       <TransactionModal />
+      <TransferModal />
       <Toaster />
     </div>
   )

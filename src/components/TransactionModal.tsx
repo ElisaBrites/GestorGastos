@@ -3,21 +3,28 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CalendarDays,
+  Clock3,
+  Plus,
   Trash2,
   Wallet as WalletIcon,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
 import { walletBalance } from '../lib/calc'
-import { todayISO } from '../lib/dates'
+import { formatFullDate, todayISO } from '../lib/dates'
+import { WALLET_TYPE_LABELS } from '../lib/defaults'
 import { currencySymbol, formatMoney, parseAmount } from '../lib/format'
+import { subcategoryVisual } from '../lib/visuals'
 import { cn } from '../lib/utils'
 import type { TxType } from '../types'
 import { Button } from './ui/Button'
 import { Modal } from './ui/Modal'
-import { Select, Input } from './ui/Input'
+import { Input } from './ui/Input'
+import { VisualSelect } from './ui/VisualSelect'
 import { ConfirmDialog } from './ui/ConfirmDialog'
 import { CategoryIcon } from './ui/CategoryIcon'
+import { CategoryModal } from './CategoryModal'
+import { SubcategoryModal } from './SubcategoryModal'
 
 export function TransactionModal() {
   const { open, editId, defaultType } = useUI((state) => state.txModal)
@@ -25,6 +32,7 @@ export function TransactionModal() {
   const toast = useUI((state) => state.toast)
 
   const transactions = useStore((state) => state.transactions)
+  const transfers = useStore((state) => state.transfers)
   const categories = useStore((state) => state.categories)
   const wallets = useStore((state) => state.wallets)
   const currency = useStore((state) => state.settings.currency)
@@ -43,6 +51,8 @@ export function TransactionModal() {
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false)
+  const [subcategoryModalOpen, setSubcategoryModalOpen] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -62,9 +72,51 @@ export function TransactionModal() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editId, defaultType])
 
+  useEffect(() => {
+    if (open) return
+    setCategoryModalOpen(false)
+    setSubcategoryModalOpen(false)
+  }, [open])
+
   const filteredCategories = categories.filter((item) => item.type === type)
   const selectedCategory = categories.find((item) => item.id === categoryId)
   const subs = selectedCategory?.subcategories ?? []
+  const selectedSub = subs.find((sub) => sub.id === subcategoryId)
+  const selectedVisual = subcategoryVisual(selectedSub, selectedCategory)
+  const scheduled = Boolean(date) && date > todayISO()
+
+  const walletOptions = wallets.map((wallet) => ({
+    value: wallet.id,
+    label: wallet.name,
+    icon: wallet.icon,
+    color: wallet.color,
+    description: WALLET_TYPE_LABELS[wallet.type],
+  }))
+
+  const categoryOptions = filteredCategories.map((category) => ({
+    value: category.id,
+    label: category.name,
+    icon: category.icon,
+    color: category.color,
+  }))
+
+  const subcategoryOptions = [
+    {
+      value: '',
+      label: 'Sin subcategoría',
+      icon: 'Tag',
+      color: selectedCategory?.color ?? '#94a3b8',
+    },
+    ...subs.map((sub) => {
+      const visual = subcategoryVisual(sub, selectedCategory)
+      return {
+        value: sub.id,
+        label: sub.name,
+        icon: visual.icon,
+        color: visual.color,
+      }
+    }),
+  ]
 
   const changeType = (next: TxType) => {
     if (next === type) return
@@ -111,7 +163,11 @@ export function TransactionModal() {
     } else {
       addTransaction(payload)
       toast(
-        type === 'income' ? 'Ingreso registrado.' : 'Gasto registrado.',
+        scheduled
+          ? 'Movimiento programado.'
+          : type === 'income'
+            ? 'Ingreso registrado.'
+            : 'Gasto registrado.',
         'success',
       )
     }
@@ -125,6 +181,11 @@ export function TransactionModal() {
     close()
   }
 
+  const closeParent = () => {
+    if (categoryModalOpen || subcategoryModalOpen || confirmDelete) return
+    close()
+  }
+
   const symbol = currencySymbol(currency)
   const formId = 'transaction-form'
 
@@ -132,12 +193,12 @@ export function TransactionModal() {
     <>
       <Modal
         open={open}
-        onClose={close}
+        onClose={closeParent}
         title={editing ? 'Editar movimiento' : 'Nuevo movimiento'}
         description={
           editing
             ? 'Ajusta los datos del movimiento seleccionado.'
-            : 'Registra un gasto o ingreso y asígnalo a una billetera.'
+            : 'Registra un gasto o ingreso. Si eliges una fecha futura quedará programado.'
         }
         size="md"
         icon={
@@ -172,7 +233,7 @@ export function TransactionModal() {
               Cancelar
             </Button>
             <Button type="submit" form={formId}>
-              {editing ? 'Guardar cambios' : 'Añadir movimiento'}
+              {editing ? 'Guardar cambios' : scheduled ? 'Programar movimiento' : 'Añadir movimiento'}
             </Button>
           </>
         }
@@ -237,7 +298,7 @@ export function TransactionModal() {
               {formatMoney(
                 (() => {
                   const wallet = wallets.find((item) => item.id === walletId)
-                  return wallet ? walletBalance(wallet, transactions) : 0
+                  return wallet ? walletBalance(wallet, transactions, transfers) : 0
                 })(),
                 currency,
               )}
@@ -251,56 +312,83 @@ export function TransactionModal() {
               value={date}
               onChange={(event) => setDate(event.target.value)}
             />
-            <Select
+            <VisualSelect
               label="Billetera"
               value={walletId}
-              onChange={(event) => setWalletId(event.target.value)}
-            >
-              {wallets.length === 0 && <option value="">Sin billeteras</option>}
-              {wallets.map((wallet) => (
-                <option key={wallet.id} value={wallet.id}>
-                  {wallet.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(next) => {
+                setWalletId(next)
+                setError('')
+              }}
+              options={walletOptions}
+              placeholder="Sin billeteras"
+              emptyLabel="Crea una billetera desde la sección Billeteras."
+            />
           </div>
 
+          {scheduled && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-warn/20 bg-warn-soft px-3 py-2.5 text-[11px] leading-relaxed text-warn">
+              <Clock3 size={14} className="mt-0.5 shrink-0" />
+              <span>
+                Este movimiento quedará programado para el {formatFullDate(date)}. No
+                afectará al balance actual ni a las estadísticas hasta ese día.
+              </span>
+            </div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-2">
-            <Select
+            <VisualSelect
               label="Categoría"
               value={categoryId}
-              onChange={(event) => {
-                setCategoryId(event.target.value)
+              onChange={(next) => {
+                setCategoryId(next)
                 setSubcategoryId('')
+                setError('')
               }}
-            >
-              {filteredCategories.length === 0 && (
-                <option value="">Sin categorías de {type === 'income' ? 'ingreso' : 'gasto'}</option>
-              )}
-              {filteredCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </Select>
-            <Select
+              options={categoryOptions}
+              placeholder={
+                filteredCategories.length === 0
+                  ? `Sin categorías de ${type === 'income' ? 'ingreso' : 'gasto'}`
+                  : 'Selecciona una categoría'
+              }
+              emptyLabel="No hay categorías para este tipo. Usa «+ Nueva»."
+              action={
+                <button
+                  type="button"
+                  onClick={() => setCategoryModalOpen(true)}
+                  className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10.5px] font-medium text-brand transition hover:bg-brand-soft"
+                >
+                  <Plus size={11} />
+                  Nueva
+                </button>
+              }
+            />
+            <VisualSelect
               label="Subcategoría"
               value={subcategoryId}
-              onChange={(event) => setSubcategoryId(event.target.value)}
-              disabled={subs.length === 0}
-            >
-              <option value="">Sin subcategoría</option>
-              {subs.map((sub) => (
-                <option key={sub.id} value={sub.id}>
-                  {sub.name}
-                </option>
-              ))}
-            </Select>
+              onChange={(next) => {
+                setSubcategoryId(next)
+                setError('')
+              }}
+              options={subcategoryOptions}
+              placeholder="Sin subcategoría"
+              action={
+                <button
+                  type="button"
+                  onClick={() => setSubcategoryModalOpen(true)}
+                  disabled={!selectedCategory}
+                  className="inline-flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[10.5px] font-medium text-brand transition hover:bg-brand-soft disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Plus size={11} />
+                  Nueva
+                </button>
+              }
+            />
           </div>
 
           {filteredCategories.length === 0 && (
             <p className="rounded-xl border border-warn/20 bg-warn-soft px-3 py-2 text-xs text-warn">
-              No hay categorías para este tipo. Créalas desde la sección Categorías.
+              No hay categorías para este tipo. Crea una desde este formulario con
+              «+ Nueva».
             </p>
           )}
 
@@ -323,12 +411,15 @@ export function TransactionModal() {
             <span className="flex-1">
               {selectedCategory ? (
                 <span className="flex items-center gap-2">
-                  <CategoryIcon icon={selectedCategory.icon} color={selectedCategory.color} size={20} radius={6} />
+                  <CategoryIcon
+                    icon={selectedVisual.icon}
+                    color={selectedVisual.color}
+                    size={20}
+                    radius={6}
+                  />
                   {selectedCategory.name}
-                  {subs.find((sub) => sub.id === subcategoryId) && (
-                    <span className="text-faint">
-                      · {subs.find((sub) => sub.id === subcategoryId)?.name}
-                    </span>
+                  {selectedSub && (
+                    <span className="text-faint">· {selectedSub.name}</span>
                   )}
                 </span>
               ) : (
@@ -350,6 +441,28 @@ export function TransactionModal() {
         title="Eliminar movimiento"
         description="Esta acción no se puede deshacer. El importe dejará de contar en tus estadísticas y saldos."
         confirmLabel="Eliminar"
+      />
+
+      <CategoryModal
+        open={categoryModalOpen}
+        onClose={() => setCategoryModalOpen(false)}
+        defaultType={type}
+        lockType
+        onCreated={(id) => {
+          setCategoryId(id)
+          setSubcategoryId('')
+          setError('')
+        }}
+      />
+
+      <SubcategoryModal
+        open={subcategoryModalOpen}
+        onClose={() => setSubcategoryModalOpen(false)}
+        category={selectedCategory}
+        onCreated={(id) => {
+          setSubcategoryId(id)
+          setError('')
+        }}
       />
     </>
   )

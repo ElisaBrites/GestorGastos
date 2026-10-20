@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Receipt,
   Tag,
-  Wallet,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { sumByType } from '../lib/calc'
@@ -23,10 +22,11 @@ import {
 } from '../lib/dates'
 import { formatMoney, formatPercent } from '../lib/format'
 import { cn, hexToRgba } from '../lib/utils'
+import { subcategoryVisual } from '../lib/visuals'
 import type { TxType } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Segmented } from '../components/ui/Segmented'
-import { Select } from '../components/ui/Input'
+import { VisualSelect } from '../components/ui/VisualSelect'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { CategoryDonut } from '../components/charts/CategoryDonut'
 import { CashflowChart, type CashflowPoint } from '../components/charts/CashflowChart'
@@ -127,14 +127,28 @@ export function Stats() {
     ? (walletMap.get(walletId)?.name ?? 'Billetera')
     : 'Todas las billeteras'
 
+  const today = todayISO()
+
+  const scheduledCount = useMemo(
+    () =>
+      transactions.filter((tx) => {
+        if (tx.type !== type) return false
+        if (walletId && tx.walletId !== walletId) return false
+        if (tx.date < range.start || tx.date > range.end) return false
+        return tx.date > today
+      }).length,
+    [transactions, type, walletId, range.start, range.end, today],
+  )
+
   const filtered = useMemo(
     () =>
       transactions.filter((tx) => {
         if (tx.type !== type) return false
         if (walletId && tx.walletId !== walletId) return false
+        if (tx.date > today) return false
         return tx.date >= range.start && tx.date <= range.end
       }),
-    [transactions, type, walletId, range.start, range.end],
+    [transactions, type, walletId, range.start, range.end, today],
   )
 
   const totals = useMemo(() => sumByType(filtered), [filtered])
@@ -181,17 +195,22 @@ export function Stats() {
       map.set(key, current)
     }
     return [...map.entries()]
-      .map(([id, data]) => ({
-        id,
-        name:
+      .map(([id, data]) => {
+        const subcategory =
           id === '__none'
-            ? 'Sin subcategoría'
-            : (selectedCategory?.subcategories.find((sub) => sub.id === id)?.name ??
-              'Sin subcategoría'),
-        amount: data.amount,
-        count: data.count,
-        share: selected.amount ? (data.amount / selected.amount) * 100 : 0,
-      }))
+            ? undefined
+            : selectedCategory?.subcategories.find((sub) => sub.id === id)
+        const visual = subcategoryVisual(subcategory, selectedCategory)
+        return {
+          id,
+          name: subcategory?.name ?? 'Sin subcategoría',
+          icon: visual.icon,
+          color: visual.color,
+          amount: data.amount,
+          count: data.count,
+          share: selected.amount ? (data.amount / selected.amount) * 100 : 0,
+        }
+      })
       .sort((a, b) => b.amount - a.amount)
   }, [filtered, selected, categoryMap])
 
@@ -216,14 +235,15 @@ export function Stats() {
     return [...map.entries()]
       .map(([key, data]) => {
         const category = categoryMap.get(data.categoryId)
+        const subcategory = category?.subcategories.find((sub) => sub.id === data.subId)
+        const visual = subcategoryVisual(subcategory, category)
         return {
           key,
           categoryId: data.categoryId,
-          name:
-            category?.subcategories.find((sub) => sub.id === data.subId)?.name ??
-            'Sin subcategoría',
+          name: subcategory?.name ?? 'Sin subcategoría',
           categoryName: category?.name ?? 'Sin categoría',
-          color: category?.color ?? '#64748b',
+          icon: visual.icon,
+          color: visual.color,
           amount: data.amount,
           count: data.count,
           share: total ? (data.amount / total) * 100 : 0,
@@ -245,6 +265,7 @@ export function Stats() {
       lastNMonthKeys(6, trendEnd).map((key) => {
         const txs = transactions.filter((tx) => {
           if (walletId && tx.walletId !== walletId) return false
+          if (tx.date > today) return false
           return monthKey(tx.date) === key
         })
         const sums = sumByType(txs)
@@ -255,7 +276,7 @@ export function Stats() {
           expense: sums.expense,
         }
       }),
-    [transactions, walletId, trendEnd],
+    [transactions, walletId, trendEnd, today],
   )
 
   const count = filtered.length
@@ -316,24 +337,22 @@ export function Stats() {
           )}
 
           <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
-            <div className="relative">
-              <Wallet
-                size={14}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
-              />
-              <Select
-                value={walletId}
-                onChange={(event) => setWalletId(event.target.value)}
-                className="h-10 w-auto min-w-[170px] py-0 pl-8 text-xs"
-              >
-                <option value="">Todas las billeteras</option>
-                {wallets.map((wallet) => (
-                  <option key={wallet.id} value={wallet.id}>
-                    {wallet.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
+            <VisualSelect
+              ariaLabel="Filtrar por billetera"
+              value={walletId}
+              onChange={setWalletId}
+              compact
+              className="w-[200px]"
+              options={[
+                { value: '', label: 'Todas las billeteras', icon: 'Wallet', color: '#64748b' },
+                ...wallets.map((wallet) => ({
+                  value: wallet.id,
+                  label: wallet.name,
+                  icon: wallet.icon,
+                  color: wallet.color,
+                })),
+              ]}
+            />
 
             <Segmented
               value={type}
@@ -360,6 +379,15 @@ export function Stats() {
           No hay {typeLabel} en <span className="font-medium text-fg">{periodLabel.toLowerCase()}</span>
           {walletId ? ` para ${walletLabel}` : ''}. Cambia el periodo, la billetera o el tipo
           de movimiento para ver datos.
+        </div>
+      )}
+
+      {scheduledCount > 0 && (
+        <div className="rounded-2xl border border-warn/20 bg-warn-soft px-4 py-3 text-[11.5px] leading-relaxed text-warn">
+          Hay {scheduledCount} {type === 'income' ? 'ingreso' : 'gasto'}
+          {scheduledCount === 1 ? '' : 's'} programado
+          {scheduledCount === 1 ? '' : 's'} en este periodo. Se incluirán en las
+          estadísticas cuando llegue su fecha.
         </div>
       )}
 
@@ -409,19 +437,22 @@ export function Stats() {
               {categoryTotals.length} categoría{categoryTotals.length === 1 ? '' : 's'}
             </p>
           </div>
-          <Select
+          <VisualSelect
+            ariaLabel="Categoría a analizar"
             value={selected?.id ?? ''}
-            onChange={(event) => setSelectedCategoryId(event.target.value)}
-            className="h-9 w-auto min-w-[170px] py-0 text-xs"
+            onChange={setSelectedCategoryId}
+            compact
+            className="w-[200px]"
+            options={categoryTotals.map((category) => ({
+              value: category.id,
+              label: category.name,
+              icon: category.icon,
+              color: category.color,
+            }))}
+            placeholder="Sin categorías"
+            emptyLabel="No hay categorías con actividad."
             disabled={categoryTotals.length === 0}
-          >
-            {categoryTotals.length === 0 && <option value="">Sin categorías</option>}
-            {categoryTotals.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </Select>
+          />
         </div>
 
         {categoryTotals.length > 0 ? (
@@ -466,9 +497,11 @@ export function Stats() {
                         active ? 'bg-brand-soft' : 'hover:bg-surface2',
                       )}
                     >
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full"
-                        style={{ backgroundColor: category.color }}
+                      <CategoryIcon
+                        icon={category.icon}
+                        color={category.color}
+                        size={20}
+                        radius={7}
                       />
                       <span
                         className={cn(
@@ -531,12 +564,11 @@ export function Stats() {
                       <div key={sub.id}>
                         <div className="flex items-center justify-between gap-3">
                           <span className="flex min-w-0 items-center gap-2">
-                            <span
-                              className="h-1.5 w-1.5 shrink-0 rounded-full"
-                              style={{
-                                backgroundColor: selected.color,
-                                opacity: Math.max(0.35, 1 - index * 0.12),
-                              }}
+                            <CategoryIcon
+                              icon={sub.icon}
+                              color={sub.color}
+                              size={16}
+                              radius={5}
                             />
                             <span className="truncate text-[11.5px] text-fg">
                               {sub.name}
@@ -559,7 +591,7 @@ export function Stats() {
                             className="h-full rounded-full transition-all"
                             style={{
                               width: `${Math.max(2, sub.share)}%`,
-                              backgroundColor: selected.color,
+                              backgroundColor: sub.color,
                               opacity: Math.max(0.4, 1 - index * 0.1),
                             }}
                           />
@@ -642,9 +674,11 @@ export function Stats() {
                   onClick={() => setSelectedCategoryId(sub.categoryId)}
                   className="flex w-full items-center gap-2.5 rounded-lg px-1 py-1 text-left transition hover:bg-surface2"
                 >
-                  <span
-                    className="h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: sub.color }}
+                  <CategoryIcon
+                    icon={sub.icon}
+                    color={sub.color}
+                    size={20}
+                    radius={7}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[12px] font-medium text-fg">

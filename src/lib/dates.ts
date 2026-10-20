@@ -43,6 +43,11 @@ export function todayISO() {
   return toISO(new Date())
 }
 
+/** Un movimiento con fecha posterior a hoy todavía está programado. */
+export function isFutureDate(iso: string) {
+  return iso > todayISO()
+}
+
 export function parseDate(iso: string) {
   const [y, m, d] = iso.split('-').map(Number)
   return new Date(y, (m || 1) - 1, d || 1)

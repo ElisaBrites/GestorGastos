@@ -1,4 +1,12 @@
-import type { AppData, Category, Recurring, Transaction, TxType, Wallet } from '../types'
+import type {
+  AppData,
+  Category,
+  Recurring,
+  Transaction,
+  Transfer,
+  TxType,
+  Wallet,
+} from '../types'
 import { addMonthsISO, advanceByFrequency, todayISO, toISO } from './dates'
 import {
   createDefaultCategories,
@@ -33,6 +41,7 @@ export function createDemoData(): AppData {
     icon: 'PiggyBank',
     color: '#10b981',
     initialBalance: 4200,
+    includeInTotal: true,
     createdAt: new Date().toISOString(),
   })
 
@@ -61,6 +70,7 @@ export function createDemoData(): AppData {
   const catPets = category('expense', 'Mascotas')
 
   const transactions: Transaction[] = []
+  const transfers: Transfer[] = []
 
   const add = (
     type: TxType,
@@ -118,6 +128,19 @@ export function createDemoData(): AppData {
     if (offset % 2 === 0) add('expense', 45, day(11), catPets, 'Veterinario', bank)
     if (offset % 3 === 1) add('expense', 65, day(18), catShopping, 'Ropa', bank)
     if (offset % 2 === 1) add('expense', 16, day(22), catLeisure, 'Cine', cash)
+
+    const transferDate = day(16)
+    if (transferDate <= today) {
+      transfers.push({
+        id: uid(),
+        amount: 250,
+        date: transferDate,
+        fromWalletId: bank,
+        toWalletId: savings,
+        note: 'Ahorro mensual',
+        createdAt: new Date().toISOString(),
+      })
+    }
   }
 
   const recurring: Recurring[] = [
@@ -187,6 +210,7 @@ export function createDemoData(): AppData {
     wallets,
     categories,
     transactions: transactions.sort((a, b) => (a.date < b.date ? 1 : -1)),
+    transfers: transfers.sort((a, b) => (a.date < b.date ? 1 : -1)),
     recurring,
     settings: { ...DEFAULT_SETTINGS },
   }

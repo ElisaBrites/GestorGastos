@@ -12,6 +12,7 @@ import { Input, Select } from './ui/Input'
 import { ColorPicker } from './ui/ColorPicker'
 import { IconPicker } from './ui/IconPicker'
 import { CategoryIcon } from './ui/CategoryIcon'
+import { Toggle } from './ui/Toggle'
 
 export function WalletModal({
   open,
@@ -32,6 +33,7 @@ export function WalletModal({
   const [initialBalance, setInitialBalance] = useState('0')
   const [icon, setIcon] = useState('Wallet')
   const [color, setColor] = useState(WALLET_COLORS[0])
+  const [includeInTotal, setIncludeInTotal] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export function WalletModal({
     setInitialBalance(wallet ? String(wallet.initialBalance).replace('.', ',') : '0')
     setIcon(wallet?.icon ?? 'Wallet')
     setColor(wallet?.color ?? WALLET_COLORS[0])
+    setIncludeInTotal(wallet?.includeInTotal !== false)
     setError('')
   }, [open, wallet])
 
@@ -57,6 +60,7 @@ export function WalletModal({
       initialBalance: Math.round(parseAmount(initialBalance) * 100) / 100,
       icon,
       color,
+      includeInTotal,
     }
     if (wallet) {
       updateWallet(wallet.id, payload)
@@ -154,6 +158,15 @@ export function WalletModal({
         <div>
           <p className="label">Color</p>
           <ColorPicker value={color} onChange={setColor} colors={WALLET_COLORS} />
+        </div>
+
+        <div className="rounded-xl border border-line bg-surface2/60 p-3.5">
+          <Toggle
+            checked={includeInTotal}
+            onChange={setIncludeInTotal}
+            label="Incluir en el balance total"
+            description="Desactívalo si quieres que esta billetera funcione por separado y no sume al total general."
+          />
         </div>
 
         {error && (

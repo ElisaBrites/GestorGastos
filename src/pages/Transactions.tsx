@@ -3,6 +3,7 @@ import {
   ArrowLeftRight,
   ChevronLeft,
   ChevronRight,
+  Clock3,
   Plus,
   Search,
   SlidersHorizontal,
@@ -10,32 +11,46 @@ import {
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
-import { groupByDate, sumByType } from '../lib/calc'
+import { sumByType } from '../lib/calc'
 import {
   currentMonthKey,
   monthKey,
   monthLabel,
   relativeGroupLabel,
   shiftMonthKey,
+  todayISO,
 } from '../lib/dates'
 import { formatMoney } from '../lib/format'
 import { cn } from '../lib/utils'
-import type { TxType } from '../types'
+import type { Transaction, Transfer, TxType } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Segmented } from '../components/ui/Segmented'
 import { EmptyState } from '../components/ui/EmptyState'
 import { TransactionRow } from '../components/TransactionRow'
-import { Select } from '../components/ui/Input'
+import { TransferRow } from '../components/TransferRow'
+import { VisualSelect } from '../components/ui/VisualSelect'
 
 type TypeFilter = 'all' | TxType
 
+type MovementItem =
+  | { kind: 'tx'; id: string; date: string; createdAt: string; tx: Transaction }
+  | {
+      kind: 'transfer'
+      id: string
+      date: string
+      createdAt: string
+      transfer: Transfer
+    }
+
 export function Transactions() {
   const transactions = useStore((state) => state.transactions)
+  const transfers = useStore((state) => state.transfers)
   const categories = useStore((state) => state.categories)
   const wallets = useStore((state) => state.wallets)
   const currency = useStore((state) => state.settings.currency)
   const openTransactionModal = useUI((state) => state.openTransactionModal)
+  const openTransferModal = useUI((state) => state.openTransferModal)
 
   const [search, setSearch] = useState('')
   const [type, setType] = useState<TypeFilter>('all')
@@ -78,12 +93,78 @@ export function Transactions() {
     })
   }, [transactions, type, walletId, categoryId, allTime, month, search, categoryMap, walletMap])
 
-  const totals = useMemo(() => sumByType(filtered), [filtered])
-  const grouped = useMemo(() => groupByDate(filtered), [filtered])
+  const filteredTransfers = useMemo(() => {
+    if (type !== 'all' || categoryId) return []
+    const term = search.trim().toLowerCase()
+    return transfers.filter((transfer) => {
+      if (
+        walletId &&
+        transfer.fromWalletId !== walletId &&
+        transfer.toWalletId !== walletId
+      ) {
+        return false
+      }
+      if (!allTime && monthKey(transfer.date) !== month) return false
+      if (!term) return true
+      const from = walletMap.get(transfer.fromWalletId)?.name
+      const to = walletMap.get(transfer.toWalletId)?.name
+      const haystack = [
+        'transferencia',
+        from,
+        to,
+        transfer.note,
+        String(transfer.amount),
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(term)
+    })
+  }, [transfers, type, categoryId, walletId, allTime, month, search, walletMap])
+
+  const today = todayISO()
+  const totals = useMemo(
+    () => sumByType(filtered.filter((tx) => tx.date <= today)),
+    [filtered, today],
+  )
+  const scheduledCount =
+    filtered.filter((tx) => tx.date > today).length +
+    filteredTransfers.filter((transfer) => transfer.date > today).length
+
+  const grouped = useMemo(() => {
+    const items: MovementItem[] = [
+      ...filtered.map((tx) => ({
+        kind: 'tx' as const,
+        id: tx.id,
+        date: tx.date,
+        createdAt: tx.createdAt,
+        tx,
+      })),
+      ...filteredTransfers.map((transfer) => ({
+        kind: 'transfer' as const,
+        id: transfer.id,
+        date: transfer.date,
+        createdAt: transfer.createdAt,
+        transfer,
+      })),
+    ].sort((a, b) => {
+      if (a.date === b.date) return a.createdAt < b.createdAt ? 1 : -1
+      return a.date < b.date ? 1 : -1
+    })
+
+    const map = new Map<string, MovementItem[]>()
+    for (const item of items) {
+      const list = map.get(item.date) ?? []
+      list.push(item)
+      map.set(item.date, list)
+    }
+    return map
+  }, [filtered, filteredTransfers])
 
   const visibleCategories = categories.filter(
     (category) => type === 'all' || category.type === type,
   )
+  const movementCount = filtered.length + filteredTransfers.length
   const filtersActive = Boolean(
     search || type !== 'all' || walletId || categoryId || allTime,
   )
@@ -119,12 +200,22 @@ export function Transactions() {
       <PageHeader
         eyebrow="Registro"
         title="Movimientos"
-        subtitle={`${filtered.length} movimiento${filtered.length === 1 ? '' : 's'} · ${allTime ? 'todo el historial' : monthLabel(month)}`}
+        subtitle={`${movementCount} movimiento${movementCount === 1 ? '' : 's'} · ${allTime ? 'todo el historial' : monthLabel(month)}`}
         actions={
-          <Button onClick={() => openTransactionModal()}>
-            <Plus size={16} strokeWidth={2.4} />
-            Nuevo movimiento
-          </Button>
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => openTransferModal()}
+              disabled={wallets.length < 2}
+            >
+              <ArrowLeftRight size={15} />
+              Transferir
+            </Button>
+            <Button onClick={() => openTransactionModal()}>
+              <Plus size={16} strokeWidth={2.4} />
+              Nuevo movimiento
+            </Button>
+          </>
         }
       />
 
@@ -202,30 +293,38 @@ export function Transactions() {
               <SlidersHorizontal size={13} />
               Filtros
             </span>
-            <Select
+            <VisualSelect
+              ariaLabel="Filtrar por billetera"
               value={walletId}
-              onChange={(event) => setWalletId(event.target.value)}
-              className="h-9 w-auto min-w-[150px] py-0 text-xs"
-            >
-              <option value="">Todas las billeteras</option>
-              {wallets.map((wallet) => (
-                <option key={wallet.id} value={wallet.id}>
-                  {wallet.name}
-                </option>
-              ))}
-            </Select>
-            <Select
+              onChange={setWalletId}
+              compact
+              className="w-[200px]"
+              options={[
+                { value: '', label: 'Todas las billeteras', icon: 'Wallet', color: '#64748b' },
+                ...wallets.map((wallet) => ({
+                  value: wallet.id,
+                  label: wallet.name,
+                  icon: wallet.icon,
+                  color: wallet.color,
+                })),
+              ]}
+            />
+            <VisualSelect
+              ariaLabel="Filtrar por categoría"
               value={categoryId}
-              onChange={(event) => setCategoryId(event.target.value)}
-              className="h-9 w-auto min-w-[150px] py-0 text-xs"
-            >
-              <option value="">Todas las categorías</option>
-              {visibleCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </Select>
+              onChange={setCategoryId}
+              compact
+              className="w-[200px]"
+              options={[
+                { value: '', label: 'Todas las categorías', icon: 'Tag', color: '#64748b' },
+                ...visibleCategories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                  icon: category.icon,
+                  color: category.color,
+                })),
+              ]}
+            />
             {filtersActive && (
               <button
                 type="button"
@@ -272,11 +371,25 @@ export function Transactions() {
         </div>
       </div>
 
+      {scheduledCount > 0 && (
+        <div className="flex items-start gap-2.5 rounded-xl border border-warn/20 bg-warn-soft px-3.5 py-2.5 text-[11px] leading-relaxed text-warn">
+          <Clock3 size={14} className="mt-0.5 shrink-0" />
+          <span>
+            Esta vista incluye {scheduledCount} movimiento
+            {scheduledCount === 1 ? '' : 's'} programado
+            {scheduledCount === 1 ? '' : 's'}. No se contabilizan en los totales ni en
+            los saldos hasta que llegue su fecha.
+          </span>
+        </div>
+      )}
+
       <div className="card overflow-hidden">
         {grouped.size > 0 ? (
           <div>
             {[...grouped.entries()].map(([date, items]) => {
-              const day = sumByType(items)
+              const day = sumByType(
+                items.flatMap((item) => (item.kind === 'tx' ? [item.tx] : [])),
+              )
               return (
                 <div key={date}>
                   <div className="flex items-center justify-between gap-3 border-b border-line bg-surface2/60 px-4 py-2">
@@ -297,16 +410,27 @@ export function Transactions() {
                     </div>
                   </div>
                   <div className="divide-y divide-line px-2">
-                    {items.map((tx) => (
-                      <TransactionRow
-                        key={tx.id}
-                        transaction={tx}
-                        category={categoryMap.get(tx.categoryId)}
-                        wallet={walletMap.get(tx.walletId)}
-                        currency={currency}
-                        onClick={() => openTransactionModal({ editId: tx.id })}
-                      />
-                    ))}
+                    {items.map((item) =>
+                      item.kind === 'tx' ? (
+                        <TransactionRow
+                          key={item.id}
+                          transaction={item.tx}
+                          category={categoryMap.get(item.tx.categoryId)}
+                          wallet={walletMap.get(item.tx.walletId)}
+                          currency={currency}
+                          onClick={() => openTransactionModal({ editId: item.id })}
+                        />
+                      ) : (
+                        <TransferRow
+                          key={item.id}
+                          transfer={item.transfer}
+                          fromWallet={walletMap.get(item.transfer.fromWalletId)}
+                          toWallet={walletMap.get(item.transfer.toWalletId)}
+                          currency={currency}
+                          onClick={() => openTransferModal({ editId: item.id })}
+                        />
+                      ),
+                    )}
                   </div>
                 </div>
               )

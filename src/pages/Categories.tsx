@@ -1,8 +1,7 @@
-import { useMemo, useState, type FormEvent } from 'react'
+import { useMemo, useState } from 'react'
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  Check,
   Pencil,
   Plus,
   Tag,
@@ -15,7 +14,8 @@ import { useUI } from '../store/useUI'
 import { currentMonthKey, monthKey } from '../lib/dates'
 import { formatMoney } from '../lib/format'
 import { hexToRgba } from '../lib/utils'
-import type { Category, TxType } from '../types'
+import { subcategoryVisual } from '../lib/visuals'
+import type { Category, Subcategory, TxType } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Segmented } from '../components/ui/Segmented'
@@ -23,6 +23,7 @@ import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { CategoryModal } from '../components/CategoryModal'
+import { SubcategoryModal } from '../components/SubcategoryModal'
 
 function CategoryCard({
   category,
@@ -37,138 +38,131 @@ function CategoryCard({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const addSubcategory = useStore((state) => state.addSubcategory)
   const deleteSubcategory = useStore((state) => state.deleteSubcategory)
   const toast = useUI((state) => state.toast)
-  const [adding, setAdding] = useState(false)
-  const [name, setName] = useState('')
+  const [subModalOpen, setSubModalOpen] = useState(false)
+  const [editingSub, setEditingSub] = useState<Subcategory | undefined>()
 
-  const submit = (event: FormEvent) => {
-    event.preventDefault()
-    const result = addSubcategory(category.id, name)
-    if (result.ok) {
-      setName('')
-      toast('Subcategoría añadida.')
-    } else {
-      toast(result.error, 'error')
-    }
+  const openCreateSub = () => {
+    setEditingSub(undefined)
+    setSubModalOpen(true)
+  }
+
+  const openEditSub = (sub: Subcategory) => {
+    setEditingSub(sub)
+    setSubModalOpen(true)
   }
 
   return (
-    <div className="card relative overflow-hidden p-4">
-      <div
-        className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full blur-2xl"
-        style={{ backgroundColor: hexToRgba(category.color, 0.18) }}
-      />
-      <div className="relative flex items-start gap-3">
-        <CategoryIcon icon={category.icon} color={category.color} size={42} radius={13} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-semibold text-fg">{category.name}</p>
-          <p className="mt-0.5 truncate text-[11px] text-faint">
-            {category.subcategories.length} subcategoría
-            {category.subcategories.length === 1 ? '' : 's'}
-            {monthTotal > 0 && (
-              <>
-                {' · '}
-                <span
-                  className={
-                    category.type === 'income' ? 'text-income' : 'text-muted'
-                  }
+    <>
+      <div className="card relative overflow-hidden p-4">
+        <div
+          className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full blur-2xl"
+          style={{ backgroundColor: hexToRgba(category.color, 0.18) }}
+        />
+        <div className="relative flex items-start gap-3">
+          <CategoryIcon icon={category.icon} color={category.color} size={42} radius={13} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[14px] font-semibold text-fg">{category.name}</p>
+            <p className="mt-0.5 truncate text-[11px] text-faint">
+              {category.subcategories.length} subcategoría
+              {category.subcategories.length === 1 ? '' : 's'}
+              {monthTotal > 0 && (
+                <>
+                  {' · '}
+                  <span
+                    className={
+                      category.type === 'income' ? 'text-income' : 'text-muted'
+                    }
+                  >
+                    {formatMoney(monthTotal, currency)} este mes
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onEdit}
+              className="grid h-7 w-7 place-items-center rounded-lg text-faint transition hover:bg-surface2 hover:text-fg"
+              aria-label={`Editar ${category.name}`}
+              title="Editar categoría"
+            >
+              <Pencil size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={onDelete}
+              className="grid h-7 w-7 place-items-center rounded-lg text-faint transition hover:bg-expense-soft hover:text-expense"
+              aria-label={`Eliminar ${category.name}`}
+              title="Eliminar categoría"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
+        </div>
+
+        <div className="relative mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
+          {category.subcategories.map((sub) => {
+            const visual = subcategoryVisual(sub, category)
+            return (
+              <span
+                key={sub.id}
+                className="group/chip inline-flex items-center gap-1 rounded-lg border border-line bg-surface2 py-1 pl-1.5 pr-1 text-[11px] text-muted transition hover:text-fg"
+              >
+                <button
+                  type="button"
+                  onClick={() => openEditSub(sub)}
+                  className="inline-flex min-w-0 items-center gap-1.5 rounded text-left transition hover:text-fg"
+                  aria-label={`Editar subcategoría ${sub.name}`}
+                  title="Editar subcategoría"
                 >
-                  {formatMoney(monthTotal, currency)} este mes
-                </span>
-              </>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={onEdit}
-            className="grid h-7 w-7 place-items-center rounded-lg text-faint transition hover:bg-surface2 hover:text-fg"
-            aria-label={`Editar ${category.name}`}
-            title="Editar categoría"
-          >
-            <Pencil size={13} />
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            className="grid h-7 w-7 place-items-center rounded-lg text-faint transition hover:bg-expense-soft hover:text-expense"
-            aria-label={`Eliminar ${category.name}`}
-            title="Eliminar categoría"
-          >
-            <Trash2 size={13} />
-          </button>
-        </div>
-      </div>
+                  <CategoryIcon
+                    icon={visual.icon}
+                    color={visual.color}
+                    size={15}
+                    radius={5}
+                  />
+                  <span className="truncate">{sub.name}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    deleteSubcategory(category.id, sub.id)
+                    toast('Subcategoría eliminada.')
+                  }}
+                  className="grid h-4 w-4 place-items-center rounded text-faint transition hover:bg-expense-soft hover:text-expense"
+                  aria-label={`Eliminar subcategoría ${sub.name}`}
+                  title="Eliminar subcategoría"
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            )
+          })}
 
-      <div className="relative mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
-        {category.subcategories.map((sub) => (
-          <span
-            key={sub.id}
-            className="group/chip inline-flex items-center gap-1 rounded-lg border border-line bg-surface2 py-1 pl-2 pr-1 text-[11px] text-muted transition hover:text-fg"
-          >
-            {sub.name}
-            <button
-              type="button"
-              onClick={() => {
-                deleteSubcategory(category.id, sub.id)
-                toast('Subcategoría eliminada.')
-              }}
-              className="grid h-4 w-4 place-items-center rounded text-faint transition hover:bg-expense-soft hover:text-expense"
-              aria-label={`Eliminar subcategoría ${sub.name}`}
-              title="Eliminar subcategoría"
-            >
-              <X size={10} />
-            </button>
-          </span>
-        ))}
-
-        {adding ? (
-          <form onSubmit={submit} className="flex items-center gap-1">
-            <input
-              autoFocus
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Nombre…"
-              maxLength={30}
-              className="h-6 w-28 rounded-md border border-brand/40 bg-surface px-1.5 text-[11px] text-fg outline-none placeholder:text-faint focus:ring-2 focus:ring-brand/15"
-            />
-            <button
-              type="submit"
-              className="grid h-6 w-6 place-items-center rounded-md bg-brand text-white transition hover:brightness-110"
-              aria-label="Añadir subcategoría"
-            >
-              <Check size={12} />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAdding(false)
-                setName('')
-              }}
-              className="grid h-6 w-6 place-items-center rounded-md text-faint transition hover:bg-surface2 hover:text-fg"
-              aria-label="Cancelar"
-            >
-              <X size={12} />
-            </button>
-          </form>
-        ) : (
           <button
             type="button"
-            onClick={() => setAdding(true)}
+            onClick={openCreateSub}
             className="inline-flex items-center gap-1 rounded-lg border border-dashed border-line-strong px-2 py-1 text-[11px] font-medium text-muted transition hover:border-brand/40 hover:text-brand"
           >
             <Plus size={11} />
             Subcategoría
           </button>
-        )}
-        {category.subcategories.length === 0 && !adding && (
-          <span className="text-[10.5px] text-faint">Sin subcategorías todavía</span>
-        )}
+          {category.subcategories.length === 0 && (
+            <span className="text-[10.5px] text-faint">Sin subcategorías todavía</span>
+          )}
+        </div>
       </div>
-    </div>
+
+      <SubcategoryModal
+        open={subModalOpen}
+        onClose={() => setSubModalOpen(false)}
+        category={category}
+        subcategory={editingSub}
+      />
+    </>
   )
 }
 
@@ -247,7 +241,7 @@ export function Categories() {
         />
         <p className="flex items-center gap-1.5 text-[11.5px] text-faint">
           <Tags size={13} />
-          Pulsa «+ Subcategoría» en una tarjeta para añadir detalle.
+          Pulsa «+ Subcategoría» para crearla o una existente para cambiar su icono y color.
         </p>
       </div>
 

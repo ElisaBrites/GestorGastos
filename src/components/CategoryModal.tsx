@@ -18,11 +18,16 @@ export function CategoryModal({
   onClose,
   category,
   defaultType = 'expense',
+  lockType = false,
+  onCreated,
 }: {
   open: boolean
   onClose: () => void
   category?: Category
   defaultType?: TxType
+  /** Fija el tipo actual, útil al crear una categoría desde un movimiento. */
+  lockType?: boolean
+  onCreated?: (id: string) => void
 }) {
   const addCategory = useStore((state) => state.addCategory)
   const updateCategory = useStore((state) => state.updateCategory)
@@ -60,8 +65,13 @@ export function CategoryModal({
       updateCategory(category.id, payload)
       toast('Categoría actualizada.')
     } else {
-      addCategory(payload)
-      toast('Categoría creada. Añade sus subcategorías.')
+      const id = addCategory(payload)
+      toast(
+        onCreated
+          ? 'Categoría creada y seleccionada.'
+          : 'Categoría creada. Añade sus subcategorías.',
+      )
+      onCreated?.(id)
     }
     onClose()
   }
@@ -122,7 +132,7 @@ export function CategoryModal({
           </span>
         </div>
 
-        {!category && (
+        {!category && !lockType && (
           <div className="grid grid-cols-2 gap-2 rounded-2xl border border-line bg-surface2 p-1.5">
             <button
               type="button"

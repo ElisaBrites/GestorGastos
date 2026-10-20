@@ -1,8 +1,10 @@
 import { Repeat } from 'lucide-react'
 import type { Category, Transaction, Wallet } from '../types'
 import { formatMoney } from '../lib/format'
-import { formatShortDate } from '../lib/dates'
+import { formatShortDate, isFutureDate } from '../lib/dates'
+import { subcategoryVisual } from '../lib/visuals'
 import { cn } from '../lib/utils'
+import { Badge } from './ui/Badge'
 import { CategoryIcon } from './ui/CategoryIcon'
 
 export function TransactionRow({
@@ -21,8 +23,10 @@ export function TransactionRow({
   compact?: boolean
 }) {
   const sub = category?.subcategories.find((item) => item.id === transaction.subcategoryId)
+  const visual = subcategoryVisual(sub, category)
   const title = sub?.name ?? category?.name ?? 'Sin categoría'
   const meta = [category?.name, wallet?.name].filter(Boolean).join(' · ')
+  const scheduled = isFutureDate(transaction.date)
 
   return (
     <button
@@ -35,8 +39,8 @@ export function TransactionRow({
       )}
     >
       <CategoryIcon
-        icon={category?.icon ?? 'Tag'}
-        color={category?.color ?? '#64748b'}
+        icon={visual.icon}
+        color={visual.color}
         size={compact ? 36 : 40}
       />
       <div className="min-w-0 flex-1">
@@ -44,6 +48,11 @@ export function TransactionRow({
           <span className="truncate">{title}</span>
           {transaction.recurringId && (
             <Repeat size={11} className="shrink-0 text-faint" aria-label="Movimiento fijo" />
+          )}
+          {scheduled && (
+            <Badge tone="warn" className="shrink-0 px-1.5 py-0 text-[9px]">
+              Programado
+            </Badge>
           )}
         </p>
         <p className="truncate text-[11.5px] text-faint">

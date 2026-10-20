@@ -15,6 +15,7 @@ import { FREQUENCY_LABELS } from '../lib/defaults'
 import { formatMoney } from '../lib/format'
 import { relativeDate, todayISO } from '../lib/dates'
 import { cn } from '../lib/utils'
+import { subcategoryVisual } from '../lib/visuals'
 import type { Frequency, Recurring } from '../types'
 import { PageHeader, SectionHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
@@ -124,14 +125,15 @@ export function RecurringPage() {
     const category = categoryMap.get(item.categoryId)
     const wallet = walletMap.get(item.walletId)
     const sub = category?.subcategories.find((entry) => entry.id === item.subcategoryId)
+    const visual = subcategoryVisual(sub, category)
     const due = item.active && item.nextDate <= today
     const overdue = item.nextDate < today
 
     return (
       <div key={item.id} className="flex items-start gap-3 p-4">
         <CategoryIcon
-          icon={category?.icon ?? 'Repeat'}
-          color={category?.color ?? '#64748b'}
+          icon={visual.icon}
+          color={visual.color}
           size={42}
           radius={13}
         />

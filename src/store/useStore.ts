@@ -7,8 +7,11 @@ import type {
   Recurring,
   RecurringInput,
   Settings,
+  SubcategoryInput,
   Transaction,
   TransactionInput,
+  Transfer,
+  TransferInput,
   Wallet,
   WalletInput,
 } from '../types'
@@ -21,22 +24,32 @@ import { createDemoData } from '../lib/demo'
 import { advanceByFrequency, todayISO } from '../lib/dates'
 import { uid } from '../lib/utils'
 
-export type ActionResult = { ok: true } | { ok: false; error: string }
+export type ActionResult = { ok: true; id?: string } | { ok: false; error: string }
 
 interface AppStore extends AppData {
   addWallet: (input: WalletInput) => string
   updateWallet: (id: string, input: WalletInput) => void
   deleteWallet: (id: string) => ActionResult
+  setWalletIncluded: (id: string, includeInTotal: boolean) => void
 
   addCategory: (input: CategoryInput) => string
   updateCategory: (id: string, input: CategoryInput) => void
   deleteCategory: (id: string) => ActionResult
-  addSubcategory: (categoryId: string, name: string) => ActionResult
+  addSubcategory: (categoryId: string, input: SubcategoryInput) => ActionResult
+  updateSubcategory: (
+    categoryId: string,
+    subcategoryId: string,
+    input: SubcategoryInput,
+  ) => ActionResult
   deleteSubcategory: (categoryId: string, subcategoryId: string) => void
 
   addTransaction: (input: TransactionInput) => string
   updateTransaction: (id: string, input: TransactionInput) => void
   deleteTransaction: (id: string) => void
+
+  addTransfer: (input: TransferInput) => string
+  updateTransfer: (id: string, input: TransferInput) => void
+  deleteTransfer: (id: string) => void
 
   addRecurring: (input: RecurringInput) => string
   updateRecurring: (id: string, input: RecurringInput) => void
@@ -56,6 +69,7 @@ function initialData(): AppData {
     wallets: createDefaultWallets(),
     categories: createDefaultCategories(),
     transactions: [],
+    transfers: [],
     recurring: [],
     settings: { ...DEFAULT_SETTINGS },
   }
@@ -79,7 +93,12 @@ export const useStore = create<AppStore>()(
         set((state) => ({
           wallets: [
             ...state.wallets,
-            { ...input, id, createdAt: new Date().toISOString() },
+            {
+              ...input,
+              id,
+              includeInTotal: input.includeInTotal !== false,
+              createdAt: new Date().toISOString(),
+            },
           ],
         }))
         return id
@@ -93,15 +112,26 @@ export const useStore = create<AppStore>()(
         }))
       },
 
+      setWalletIncluded: (id, includeInTotal) => {
+        set((state) => ({
+          wallets: state.wallets.map((wallet) =>
+            wallet.id === id ? { ...wallet, includeInTotal } : wallet,
+          ),
+        }))
+      },
+
       deleteWallet: (id) => {
         const state = get()
         const usedByTx = state.transactions.some((tx) => tx.walletId === id)
         const usedByRecurring = state.recurring.some((item) => item.walletId === id)
-        if (usedByTx || usedByRecurring) {
+        const usedByTransfer = state.transfers.some(
+          (transfer) => transfer.fromWalletId === id || transfer.toWalletId === id,
+        )
+        if (usedByTx || usedByRecurring || usedByTransfer) {
           return {
             ok: false,
             error:
-              'Esta billetera tiene movimientos o fijos asociados. Elimina o mueve esos registros primero.',
+              'Esta billetera tiene movimientos, transferencias o fijos asociados. Elimina o mueve esos registros primero.',
           }
         }
         set({ wallets: state.wallets.filter((wallet) => wallet.id !== id) })
@@ -142,8 +172,8 @@ export const useStore = create<AppStore>()(
         return { ok: true }
       },
 
-      addSubcategory: (categoryId, name) => {
-        const clean = name.trim()
+      addSubcategory: (categoryId, input) => {
+        const clean = input.name.trim()
         if (!clean) return { ok: false, error: 'Escribe un nombre para la subcategoría.' }
         const state = get()
         const category = state.categories.find((item) => item.id === categoryId)
@@ -152,12 +182,56 @@ export const useStore = create<AppStore>()(
           (sub) => sub.name.toLowerCase() === clean.toLowerCase(),
         )
         if (exists) return { ok: false, error: 'Esa subcategoría ya existe.' }
+        const id = uid()
         set({
           categories: state.categories.map((item) =>
             item.id === categoryId
               ? {
                   ...item,
-                  subcategories: [...item.subcategories, { id: uid(), name: clean }],
+                  subcategories: [
+                    ...item.subcategories,
+                    {
+                      id,
+                      name: clean,
+                      icon: input.icon ?? category.icon,
+                      color: input.color ?? category.color,
+                    },
+                  ],
+                }
+              : item,
+          ),
+        })
+        return { ok: true, id }
+      },
+
+      updateSubcategory: (categoryId, subcategoryId, input) => {
+        const clean = input.name.trim()
+        if (!clean) return { ok: false, error: 'Escribe un nombre para la subcategoría.' }
+        const state = get()
+        const category = state.categories.find((item) => item.id === categoryId)
+        if (!category) return { ok: false, error: 'La categoría no existe.' }
+        const subcategory = category.subcategories.find((sub) => sub.id === subcategoryId)
+        if (!subcategory) return { ok: false, error: 'La subcategoría no existe.' }
+        const exists = category.subcategories.some(
+          (sub) =>
+            sub.id !== subcategoryId && sub.name.toLowerCase() === clean.toLowerCase(),
+        )
+        if (exists) return { ok: false, error: 'Esa subcategoría ya existe.' }
+        set({
+          categories: state.categories.map((item) =>
+            item.id === categoryId
+              ? {
+                  ...item,
+                  subcategories: item.subcategories.map((sub) =>
+                    sub.id === subcategoryId
+                      ? {
+                          ...sub,
+                          name: clean,
+                          icon: input.icon ?? sub.icon,
+                          color: input.color ?? sub.color,
+                        }
+                      : sub,
+                  ),
                 }
               : item,
           ),
@@ -213,6 +287,33 @@ export const useStore = create<AppStore>()(
       deleteTransaction: (id) => {
         set((state) => ({
           transactions: state.transactions.filter((tx) => tx.id !== id),
+        }))
+      },
+
+      addTransfer: (input) => {
+        const id = uid()
+        const transfer: Transfer = {
+          ...input,
+          id,
+          createdAt: new Date().toISOString(),
+        }
+        set((state) => ({ transfers: [...state.transfers, transfer] }))
+        return id
+      },
+
+      updateTransfer: (id, input) => {
+        set((state) => ({
+          transfers: state.transfers.map((transfer) =>
+            transfer.id === id
+              ? { ...transfer, ...input, id, createdAt: transfer.createdAt }
+              : transfer,
+          ),
+        }))
+      },
+
+      deleteTransfer: (id) => {
+        set((state) => ({
+          transfers: state.transfers.filter((transfer) => transfer.id !== id),
         }))
       },
 
@@ -348,9 +449,15 @@ export const useStore = create<AppStore>()(
 
       replaceData: (data) => {
         set({
-          wallets: Array.isArray(data.wallets) ? data.wallets : [],
+          wallets: Array.isArray(data.wallets)
+            ? data.wallets.map((wallet) => ({
+                ...wallet,
+                includeInTotal: wallet.includeInTotal !== false,
+              }))
+            : [],
           categories: Array.isArray(data.categories) ? data.categories : [],
           transactions: Array.isArray(data.transactions) ? data.transactions : [],
+          transfers: Array.isArray(data.transfers) ? data.transfers : [],
           recurring: Array.isArray(data.recurring) ? data.recurring : [],
           settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
         })
@@ -368,6 +475,21 @@ export const useStore = create<AppStore>()(
     {
       name: 'bolsillo.v1',
       version: 1,
+      merge: (persisted, current) => {
+        const data = (persisted ?? {}) as Partial<AppData>
+        return {
+          ...current,
+          ...data,
+          wallets: (Array.isArray(data.wallets) ? data.wallets : current.wallets).map(
+            (wallet) => ({
+              ...wallet,
+              includeInTotal: wallet.includeInTotal !== false,
+            }),
+          ),
+          transfers: Array.isArray(data.transfers) ? data.transfers : [],
+          settings: { ...current.settings, ...(data.settings ?? {}) },
+        }
+      },
     },
   ),
 )

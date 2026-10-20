@@ -16,10 +16,18 @@ interface TransactionModalState {
   defaultType?: TxType
 }
 
+interface TransferModalState {
+  open: boolean
+  editId?: string
+}
+
 interface UIStore {
   txModal: TransactionModalState
   openTransactionModal: (options?: { editId?: string; type?: TxType }) => void
   closeTransactionModal: () => void
+  transferModal: TransferModalState
+  openTransferModal: (options?: { editId?: string }) => void
+  closeTransferModal: () => void
   toasts: Toast[]
   toast: (message: string, tone?: ToastTone) => void
   dismissToast: (id: string) => void
@@ -36,6 +44,10 @@ export const useUI = create<UIStore>()((set, get) => ({
       },
     }),
   closeTransactionModal: () => set({ txModal: { open: false } }),
+  transferModal: { open: false },
+  openTransferModal: (options) =>
+    set({ transferModal: { open: true, editId: options?.editId } }),
+  closeTransferModal: () => set({ transferModal: { open: false } }),
   toasts: [],
   toast: (message, tone = 'success') => {
     const id = uid()

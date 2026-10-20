@@ -1,23 +1,55 @@
-import type { Transaction, Wallet } from '../types'
-import { monthKey } from './dates'
+import type { Transaction, Transfer, Wallet } from '../types'
+import { monthKey, todayISO } from './dates'
 
-export function walletBalance(wallet: Wallet, transactions: Transaction[]) {
-  return transactions.reduce(
-    (total, tx) =>
-      tx.walletId === wallet.id
-        ? total + (tx.type === 'income' ? tx.amount : -tx.amount)
-        : total,
-    wallet.initialBalance,
-  )
+/** Solo los movimientos con fecha de hoy o anterior forman parte del saldo actual. */
+export function settledTransactions(transactions: Transaction[]) {
+  const today = todayISO()
+  return transactions.filter((tx) => tx.date <= today)
 }
 
-export function walletBalances(wallets: Wallet[], transactions: Transaction[]) {
+export function walletIsIncluded(wallet: Wallet) {
+  return wallet.includeInTotal !== false
+}
+
+export function walletBalance(
+  wallet: Wallet,
+  transactions: Transaction[],
+  transfers: Transfer[] = [],
+) {
+  const today = todayISO()
+  let balance = wallet.initialBalance
+  for (const tx of transactions) {
+    if (tx.date > today || tx.walletId !== wallet.id) continue
+    balance += tx.type === 'income' ? tx.amount : -tx.amount
+  }
+  for (const transfer of transfers) {
+    if (transfer.date > today) continue
+    if (transfer.fromWalletId === wallet.id) balance -= transfer.amount
+    if (transfer.toWalletId === wallet.id) balance += transfer.amount
+  }
+  return balance
+}
+
+export function walletBalances(
+  wallets: Wallet[],
+  transactions: Transaction[],
+  transfers: Transfer[] = [],
+) {
+  const today = todayISO()
   const balances = new Map<string, number>()
   for (const wallet of wallets) balances.set(wallet.id, wallet.initialBalance)
   for (const tx of transactions) {
+    if (tx.date > today) continue
     const value = balances.get(tx.walletId)
     if (value === undefined) continue
     balances.set(tx.walletId, value + (tx.type === 'income' ? tx.amount : -tx.amount))
+  }
+  for (const transfer of transfers) {
+    if (transfer.date > today) continue
+    const from = balances.get(transfer.fromWalletId)
+    if (from !== undefined) balances.set(transfer.fromWalletId, from - transfer.amount)
+    const to = balances.get(transfer.toWalletId)
+    if (to !== undefined) balances.set(transfer.toWalletId, to + transfer.amount)
   }
   return balances
 }
@@ -41,16 +73,3 @@ export function percentChange(current: number, previous: number): number | null 
   return ((current - previous) / Math.abs(previous)) * 100
 }
 
-export function groupByDate(transactions: Transaction[]) {
-  const grouped = new Map<string, Transaction[]>()
-  const sorted = [...transactions].sort((a, b) => {
-    if (a.date === b.date) return a.createdAt < b.createdAt ? 1 : -1
-    return a.date < b.date ? 1 : -1
-  })
-  for (const tx of sorted) {
-    const list = grouped.get(tx.date) ?? []
-    list.push(tx)
-    grouped.set(tx.date, list)
-  }
-  return grouped
-}

@@ -72,6 +72,7 @@ export function createDefaultWallets(): Wallet[] {
       icon: 'Wallet',
       color: '#f59e0b',
       initialBalance: 0,
+      includeInTotal: true,
       createdAt: new Date().toISOString(),
     },
     {
@@ -81,6 +82,7 @@ export function createDefaultWallets(): Wallet[] {
       icon: 'Landmark',
       color: '#6366f1',
       initialBalance: 0,
+      includeInTotal: true,
       createdAt: new Date().toISOString(),
     },
   ]

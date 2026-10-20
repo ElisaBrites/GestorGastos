@@ -70,6 +70,7 @@ export function Settings() {
   const wallets = useStore((state) => state.wallets)
   const categories = useStore((state) => state.categories)
   const transactions = useStore((state) => state.transactions)
+  const transfers = useStore((state) => state.transfers)
   const recurring = useStore((state) => state.recurring)
   const setSettings = useStore((state) => state.setSettings)
   const replaceData = useStore((state) => state.replaceData)
@@ -89,13 +90,13 @@ export function Settings() {
   ]
 
   const handleExport = () => {
-    const { wallets, categories, transactions, recurring, settings } =
+    const { wallets, categories, transactions, transfers, recurring, settings } =
       useStore.getState()
     const payload = {
       app: 'bolsillo',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
-      data: { wallets, categories, transactions, recurring, settings },
+      data: { wallets, categories, transactions, transfers, recurring, settings },
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: 'application/json',
@@ -142,6 +143,14 @@ export function Settings() {
             ...item,
             createdAt: item.createdAt ?? new Date().toISOString(),
           })),
+        transfers: Array.isArray(raw.transfers)
+          ? raw.transfers
+              .filter((item: any) => item && typeof item.id === 'string')
+              .map((item: any) => ({
+                ...item,
+                createdAt: item.createdAt ?? new Date().toISOString(),
+              }))
+          : [],
         recurring: raw.recurring.filter((item: any) => item && typeof item.id === 'string'),
         settings: {
           ...DEFAULT_SETTINGS,
@@ -156,7 +165,7 @@ export function Settings() {
   }
 
   const handleLoadDemo = () => {
-    if (transactions.length > 0) {
+    if (transactions.length > 0 || transfers.length > 0) {
       setConfirmDemo(true)
       return
     }
@@ -266,8 +275,9 @@ export function Settings() {
             <div>
               <h2 className="section-title">Datos y respaldo</h2>
               <p className="text-[11px] text-muted">
-                {transactions.length} movimientos · {wallets.length} billeteras ·{' '}
-                {categories.length} categorías · {recurring.length} fijos
+                {transactions.length} movimientos · {transfers.length} transferencias ·{' '}
+                {wallets.length} billeteras · {categories.length} categorías ·{' '}
+                {recurring.length} fijos
               </p>
             </div>
           </div>
@@ -282,7 +292,8 @@ export function Settings() {
             <div>
               <p className="text-[13px] font-medium text-fg">Exportar copia de seguridad</p>
               <p className="mt-0.5 text-[11.5px] text-muted">
-                Descarga billeteras, categorías, movimientos, fijos y ajustes en JSON.
+                Descarga billeteras, categorías, movimientos, transferencias, fijos y
+                ajustes en JSON.
               </p>
             </div>
             <Button variant="secondary" size="sm" onClick={handleExport}>

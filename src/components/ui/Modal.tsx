@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -30,6 +30,8 @@ export function Modal({
   size = 'md',
   icon,
 }: ModalProps) {
+  const titleId = useId()
+
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
@@ -56,7 +58,7 @@ export function Modal({
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
         className={cn(
           'relative z-10 max-h-[92dvh] w-full animate-slide-up overflow-y-auto rounded-t-3xl border border-line bg-surface shadow-[var(--shadow-pop)] sm:rounded-3xl sm:animate-pop-in',
           sizes[size],
@@ -65,7 +67,7 @@ export function Modal({
         <div className="flex items-start gap-3 border-b border-line px-5 py-4 sm:px-6">
           {icon && <div className="mt-0.5">{icon}</div>}
           <div className="min-w-0 flex-1">
-            <h2 id="modal-title" className="text-[17px] font-semibold tracking-[-0.02em]">
+            <h2 id={titleId} className="text-[17px] font-semibold tracking-[-0.02em]">
               {title}
             </h2>
             {description && (
