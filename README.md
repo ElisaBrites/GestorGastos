@@ -1,14 +1,17 @@
 # Bolsillo
 
-Gestor personal de finanzas con estética clara, modo oscuro, PWA instalable y datos sincronizados en PostgreSQL. La app conserva una copia local para poder consultar y editar la información sin conexión.
+Gestor personal de finanzas con estética clara, modo oscuro, diseño responsive y datos sincronizados en PostgreSQL. La app conserva una copia local por usuario para tolerar cortes de conexión.
 
 ## Cómo funciona
 
 - El acceso es con **usuario y contraseña**, sin email, OAuth ni redes sociales.
-- La primera vez que se abre una instalación sin cuentas, se muestra un formulario para crear la única cuenta. Después de eso solo aparece el login.
+- Puedes **entrar** con una cuenta existente o **crear una cuenta nueva** desde la pantalla de acceso. Se admiten varios usuarios en la misma instalación.
+- Cada usuario tiene sus propias billeteras, categorías, movimientos, transferencias, fijos y ajustes.
 - La contraseña se guarda hasheada con bcrypt. La sesión usa una cookie `HttpOnly` y un token que se almacena hasheado en la base de datos.
 - Los datos financieros se guardan en PostgreSQL (una fila JSONB por usuario) y también en `localStorage` como caché local.
-- Si se pierde la conexión, la app sigue funcionando con la copia local. Al volver la conexión, los cambios se sincronizan automáticamente.
+- Si se pierde la conexión mientras la app está abierta, se sigue usando la copia local. Al volver la conexión, los cambios se sincronizan automáticamente.
+- La moneda inicial es el **peso argentino (ARS)**. Se puede cambiar desde Ajustes.
+- No hay datos de ejemplo: cada cuenta empieza con sus billeteras y categorías iniciales.
 
 ## Puesta en marcha en local
 
@@ -51,7 +54,9 @@ npm run server
 
 Abre `http://localhost:3001`. `npm run server` carga `.env`; `npm start` está pensado para Render y usa las variables de entorno del servicio.
 
-En el primer acceso, crea tu usuario y contraseña. La cuenta se crea una sola vez; los siguientes accesos muestran el login.
+En el primer acceso puedes crear tu usuario y contraseña. Para añadir otra cuenta, cierra sesión y usa **Crear cuenta** en la pantalla de acceso.
+
+> Si venías de la versión local de Bolsillo, la primera cuenta que crees en PostgreSQL en este navegador hereda los datos locales si la cuenta todavía no tiene datos en la nube. Si ya tenías datos en PostgreSQL, puedes recuperar la copia local desde **Ajustes → Importar datos locales anteriores**. Las cuentas locales anteriores no se migran: crea una cuenta nueva en PostgreSQL.
 
 ## Despliegue en Render
 
@@ -74,13 +79,11 @@ El servidor crea las tablas `users`, `sessions` y `user_data` al arrancar si no 
 
 > Importante: no pongas `DATABASE_URL` en una variable que empiece por `VITE_`. Esas variables se incluyen en el frontend. La cadena de conexión solo debe existir en el servidor y en `.env` local, que está ignorado por git.
 
-Después del primer despliegue, abre la URL de Render y crea la cuenta inmediatamente. El endpoint de creación se desactiva en cuanto existe un usuario.
-
 ## Base de datos
 
 El esquema está en `server/schema.sql`:
 
-- `users`: usuario único, contraseña hasheada y fecha de creación.
+- `users`: usuarios, contraseña hasheada y fecha de creación.
 - `sessions`: sesiones activas con token hasheado y expiración.
 - `user_data`: un documento JSONB por usuario con billeteras, categorías, movimientos, transferencias, fijos y ajustes.
 
@@ -91,9 +94,10 @@ El esquema está en `server/schema.sql`:
 - Toda la app se guarda como un único documento `AppData` por usuario.
 - Los cambios se envían al servidor con un retardo de 900 ms para no saturar la API.
 - Si hay cambios desde dos dispositivos, gana la última escritura completa.
-- La copia local vive bajo la clave `bolsillo.v1` de `localStorage`.
-- La sesión cacheada guarda solo el id y el nombre de usuario para permitir el acceso offline. No guarda la contraseña ni el token de sesión.
+- La copia local de cada usuario vive en `localStorage` bajo `bolsillo.data.v1.<id>`.
+- La sesión cacheada guarda solo el id y el nombre de usuario para recordar la sesión y usar la copia local si falla la conexión. No guarda la contraseña ni el token de sesión.
 - **Ajustes → Exportar copia de seguridad** e **Importar copia** siguen disponibles para respaldos manuales.
+- **Ajustes → Restablecer todo** vuelve a las billeteras y categorías iniciales del usuario activo.
 
 ## Funcionalidades
 
@@ -106,38 +110,12 @@ El esquema está en `server/schema.sql`:
 - **Billeteras**: varias cuentas (efectivo, banco, ahorros…) con saldo inicial, saldo a la fecha de referencia e ingresos/gastos del mes. Cada billetera se puede excluir del balance total con el botón de visibilidad de la tarjeta o desde su ficha.
 - **Categorías**: categorías y subcategorías con icono y color propios; se pueden crear y editar, incluso al vuelo desde el formulario de movimiento.
 - **Estadísticas**: análisis por categoría y subcategoría para gastos, ingresos o **ambos juntos**, con tarjetas combinadas de ingresos, gastos, balance y actividad. Permite filtrar por mes/año/todo y **seleccionar varias billeteras a la vez** (o todas). Incluye evolución de 6 meses, subcategorías destacadas y paneles separados de ingresos y gastos cuando se usa el modo «Ambos». Solo se contabilizan los movimientos hasta la fecha de referencia.
-- **Ajustes**: tema claro/oscuro/sistema, moneda, instalación como app en móvil/tablet, cuenta y cierre de sesión, exportación e importación JSON (incluye transferencias y billeteras excluidas del total), datos de ejemplo y restablecimiento.
-
-## Instalación en móvil y tablet
-
-Bolsillo es una **PWA instalable**. Para probarla con service worker y funcionamiento offline usa la compilación de producción:
-
-```bash
-npm run build
-npm run server
-```
-
-- **Android (Chrome/Edge)**: abre la URL de producción y entra en **Ajustes → Instalar en tu móvil**, o usa el menú del navegador → **Instalar aplicación**.
-- **iPhone/iPad (Safari)**: abre la URL, toca **Compartir → Añadir a pantalla de inicio**. En otros navegadores de iOS la opción está en el mismo menú.
-- La app se abre a pantalla completa, respeta las áreas seguras de la pantalla y adapta la navegación a celulares y tablets.
-- Tras la primera visita, el service worker precarga la aplicación para que puedas abrirla y consultar tus datos **sin conexión**.
-- Para mover datos entre dispositivos, la cuenta ya se encarga de la sincronización. También puedes usar **Ajustes → Exportar copia de seguridad** e **Importar copia**.
-
-El service worker solo se activa en la compilación de producción; `npm run dev` no cachea archivos para no interferir con la recarga en caliente. Si cambias el icono de la app, regenera los tamaños para PWA con `npm run pwa:icons` desde `public/app-icon.svg`.
-
-## Comandos
-
-```bash
-npm run dev          # Vite en desarrollo
-npm run dev:server   # API con recarga automática (carga .env)
-npm run server       # API + dist/ en local (carga .env)
-npm start            # servidor para Render (variables de entorno)
-npm run db:init      # crea/actualiza las tablas (carga .env)
-npm run typecheck    # comprobación de tipos
-npm run build        # compilación de producción en dist/
-npm run pwa:icons    # regenera los iconos PWA
-```
+- **Ajustes**: tema claro/oscuro/sistema, moneda (ARS por defecto), cuenta y cierre de sesión, estado de sincronización, exportación e importación JSON (incluye transferencias y billeteras excluidas del total) y restablecimiento.
 
 ## Tecnología
 
-React 19, TypeScript, Vite, Tailwind CSS 4, Zustand (persistencia), Recharts, Lucide y Vite PWA (manifest, iconos y service worker con Workbox). Backend con Node.js, Express, `pg`, bcryptjs y PostgreSQL. Sesiones con cookie `HttpOnly` y tokens hasheados en la base de datos.
+React 19, TypeScript, Vite, Tailwind CSS 4, Zustand, Recharts y Lucide. Backend con Express, PostgreSQL (`pg`), sesiones con cookie `HttpOnly` y contraseñas con bcrypt. La copia local por usuario permite seguir usando la app ante cortes de conexión.
+
+## Diseño responsive
+
+Bolsillo es un sitio web responsive: adapta la navegación y las tarjetas a celulares, tablets y escritorio. No se instala como aplicación. Se conserva un archivo de limpieza para retirar el service worker de la versión anterior; la copia local se usa para tolerar cortes de conexión mientras la pestaña está abierta.

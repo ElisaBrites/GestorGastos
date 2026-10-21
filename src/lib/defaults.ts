@@ -60,7 +60,7 @@ export const WALLET_TYPES = Object.keys(WALLET_TYPE_LABELS) as WalletType[]
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
-  currency: 'EUR',
+  currency: 'ARS',
 }
 
 export function createDefaultWallets(): Wallet[] {

@@ -1,7 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import {
   Check,
-  CheckCircle2,
   Cloud,
   CloudOff,
   Coins,
@@ -12,23 +11,19 @@ import {
   Moon,
   Palette,
   RotateCcw,
-  Share2,
   ShieldCheck,
-  Smartphone,
-  Sparkles,
   Sun,
   Upload,
   UserRound,
-  WifiOff,
 } from 'lucide-react'
 import { useAuth } from '../store/useAuth'
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
-import { appDataFromStore, saveCloudData } from '../lib/cloud'
+import { appDataFromStore, clearCloudPending, saveCloudData } from '../lib/cloud'
 import { CURRENCIES, formatMoney } from '../lib/format'
 import { DEFAULT_SETTINGS } from '../lib/defaults'
+import { getLocalBackupForImport } from '../lib/userData'
 import { todayISO } from '../lib/dates'
-import { useInstallPrompt } from '../lib/useInstallPrompt'
 import { cn } from '../lib/utils'
 import type { AppData, ThemeMode } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
@@ -85,33 +80,28 @@ export function Settings() {
   const recurring = useStore((state) => state.recurring)
   const setSettings = useStore((state) => state.setSettings)
   const replaceData = useStore((state) => state.replaceData)
-  const loadDemo = useStore((state) => state.loadDemo)
   const resetAll = useStore((state) => state.resetAll)
   const toast = useUI((state) => state.toast)
-  const { canInstall, isInstalled, isIOS, install } = useInstallPrompt()
   const user = useAuth((state) => state.user)
   const offline = useAuth((state) => state.offline)
   const logout = useAuth((state) => state.logout)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [confirmDemo, setConfirmDemo] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
+  const [confirmLocalImport, setConfirmLocalImport] = useState(false)
   const [pendingImport, setPendingImport] = useState<AppData | null>(null)
-
-  const handleInstall = async () => {
-    const outcome = await install()
-    if (outcome === 'accepted') {
-      toast('Bolsillo se instaló correctamente.')
-    } else if (outcome === 'dismissed') {
-      toast('Puedes instalar Bolsillo más tarde desde el menú del navegador.', 'info')
-    }
-  }
+  const [localBackup, setLocalBackup] = useState<AppData | null>(() =>
+    user ? getLocalBackupForImport(user.id) : null,
+  )
 
   const handleLogout = async () => {
-    try {
-      await saveCloudData(appDataFromStore(useStore.getState()))
-    } catch {
-      // El cierre de sesión local debe funcionar aunque no haya conexión.
+    if (user) {
+      try {
+        await saveCloudData(appDataFromStore(useStore.getState()))
+        clearCloudPending(user.id)
+      } catch {
+        // El cierre de sesión local debe funcionar aunque no haya conexión.
+      }
     }
     await logout()
   }
@@ -195,15 +185,6 @@ export function Settings() {
     } catch {
       toast('El archivo no tiene un formato de copia válido.', 'error')
     }
-  }
-
-  const handleLoadDemo = () => {
-    if (transactions.length > 0 || transfers.length > 0) {
-      setConfirmDemo(true)
-      return
-    }
-    loadDemo()
-    toast('Datos de ejemplo cargados.')
   }
 
   return (
@@ -294,91 +275,10 @@ export function Settings() {
             </span>
           </div>
           <p className="mt-3 text-[10.5px] text-faint">
-            Los importes se formatean con la configuración regional española (es-ES).
+            Los importes se formatean según la moneda elegida (es-AR para ARS).
           </p>
         </section>
       </div>
-
-      <section className="card p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-soft text-brand">
-              <Smartphone size={17} />
-            </span>
-            <div>
-              <h2 className="section-title">Instalar en tu móvil</h2>
-              <p className="text-[11px] text-muted">
-                Úsala como una app, a pantalla completa y sin conexión.
-              </p>
-            </div>
-          </div>
-          {isInstalled && (
-            <span className="inline-flex items-center gap-1.5 self-start rounded-lg bg-income-soft px-2 py-1 text-[10.5px] font-medium text-income">
-              <CheckCircle2 size={12} />
-              Instalada
-            </span>
-          )}
-        </div>
-
-        <div className="mt-4 rounded-xl border border-line bg-surface2/60 p-3.5">
-          {isInstalled ? (
-            <div className="flex items-start gap-2.5">
-              <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-income" />
-              <p className="text-[12px] leading-relaxed text-muted">
-                Bolsillo ya está instalada en este dispositivo. Ábrela desde su icono
-                para usarla a pantalla completa y seguir consultando tus datos sin
-                conexión.
-              </p>
-            </div>
-          ) : canInstall ? (
-            <>
-              <p className="text-[12px] leading-relaxed text-muted">
-                Añade Bolsillo a tu pantalla de inicio para abrirla directamente, sin
-                la barra del navegador.
-              </p>
-              <Button size="sm" onClick={handleInstall} className="mt-3 w-full sm:w-auto">
-                <Download size={14} />
-                Instalar Bolsillo
-              </Button>
-            </>
-          ) : isIOS ? (
-            <>
-              <p className="text-[12px] leading-relaxed text-muted">
-                En iPhone o iPad, abre Bolsillo en Safari y toca{' '}
-                <span className="inline-flex items-center gap-1 font-medium text-fg">
-                  <Share2 size={13} />
-                  Compartir
-                </span>{' '}
-                →{' '}
-                <span className="font-medium text-fg">Añadir a pantalla de inicio</span>.
-              </p>
-              <p className="mt-1.5 text-[10.5px] leading-relaxed text-faint">
-                Si usas otro navegador en iOS, también encontrarás esta opción en el
-                menú Compartir.
-              </p>
-            </>
-          ) : (
-            <p className="text-[12px] leading-relaxed text-muted">
-              Abre el menú del navegador y elige{' '}
-              <span className="font-medium text-fg">Instalar aplicación</span> o{' '}
-              <span className="font-medium text-fg">Añadir a pantalla de inicio</span>.
-              En Chrome también puedes usar el icono de instalar de la barra de
-              direcciones.
-            </p>
-          )}
-        </div>
-
-        <div className="mt-3 grid gap-2 text-[11px] text-muted sm:grid-cols-2">
-          <span className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
-            <Check size={13} className="shrink-0 text-income" />
-            Acceso directo desde la pantalla de inicio
-          </span>
-          <span className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2">
-            <WifiOff size={13} className="shrink-0 text-brand" />
-            Funciona sin conexión
-          </span>
-        </div>
-      </section>
 
       <section className="card p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -412,7 +312,7 @@ export function Settings() {
         </div>
         <p className="mt-3 text-[10.5px] leading-relaxed text-faint">
           Tus datos se guardan en PostgreSQL y se sincronizan automáticamente. En este
-          dispositivo queda una copia local para poder consultarlos sin conexión.
+          dispositivo queda una copia local de respaldo.
         </p>
       </section>
 
@@ -433,7 +333,7 @@ export function Settings() {
           </div>
           <span className="inline-flex items-center gap-1.5 self-start rounded-lg bg-income-soft px-2 py-1 text-[10.5px] font-medium text-income sm:self-auto">
             <ShieldCheck size={12} />
-            Guardado local
+            Copia local
           </span>
         </div>
 
@@ -476,18 +376,27 @@ export function Settings() {
             </Button>
           </div>
 
-          <div className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-[13px] font-medium text-fg">Cargar datos de ejemplo</p>
-              <p className="mt-0.5 text-[11.5px] text-muted">
-                Seis meses de movimientos y fijos para probar la aplicación.
-              </p>
+          {localBackup && (
+            <div className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[13px] font-medium text-fg">
+                  Importar datos locales anteriores
+                </p>
+                <p className="mt-0.5 text-[11.5px] text-muted">
+                  Recupera los datos de la versión local de este navegador. Reemplaza los
+                  datos actuales de este usuario.
+                </p>
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setConfirmLocalImport(true)}
+              >
+                <Database size={14} />
+                Importar locales
+              </Button>
             </div>
-            <Button variant="soft" size="sm" onClick={handleLoadDemo}>
-              <Sparkles size={14} />
-              Cargar ejemplo
-            </Button>
-          </div>
+          )}
 
           <div className="flex flex-col gap-3 py-3.5 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -512,30 +421,12 @@ export function Settings() {
       <div className="flex flex-col items-center justify-center gap-2 py-4 text-center">
         <span className="flex items-center gap-1.5 text-[11px] font-medium text-muted">
           <ShieldCheck size={13} className="text-income" />
-          Tus datos nunca salen de este navegador
+          Tus datos se sincronizan con PostgreSQL y se guarda una copia local
         </span>
         <p className="text-[10.5px] text-faint">
           Bolsillo v1.0 · Hecho para tener tus finanzas en claro.
         </p>
       </div>
-
-      <ConfirmDialog
-        open={confirmDemo}
-        onClose={() => setConfirmDemo(false)}
-        onConfirm={() => {
-          loadDemo()
-          toast('Datos de ejemplo cargados.')
-        }}
-        title="Cargar datos de ejemplo"
-        description="Se reemplazarán los movimientos, fijos, billeteras y categorías actuales por un conjunto de demostración de seis meses. Exporta una copia antes si quieres conservar tus datos."
-        confirmLabel="Cargar ejemplo"
-        danger={false}
-        icon={
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-soft text-brand">
-            <Sparkles size={18} />
-          </span>
-        }
-      />
 
       <ConfirmDialog
         open={confirmReset}
@@ -547,6 +438,27 @@ export function Settings() {
         title="Restablecer todos los datos"
         description="Se eliminarán todas tus billeteras, categorías, movimientos y fijos. Esta acción no se puede deshacer. Te recomendamos exportar una copia antes."
         confirmLabel="Restablecer todo"
+      />
+
+      <ConfirmDialog
+        open={confirmLocalImport}
+        onClose={() => setConfirmLocalImport(false)}
+        onConfirm={() => {
+          if (!localBackup) return
+          replaceData(localBackup)
+          setLocalBackup(null)
+          setConfirmLocalImport(false)
+          toast('Datos locales importados. Se sincronizarán con PostgreSQL.')
+        }}
+        title="Importar datos locales anteriores"
+        description="Se reemplazarán los datos actuales de este usuario por la copia local de la versión anterior. Esta acción no se puede deshacer."
+        confirmLabel="Importar datos locales"
+        danger={false}
+        icon={
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-soft text-brand">
+            <Database size={18} />
+          </span>
+        }
       />
 
       <ConfirmDialog

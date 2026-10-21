@@ -26,7 +26,7 @@ function writeCachedUser(user: AuthUser) {
   try {
     localStorage.setItem(USER_CACHE_KEY, JSON.stringify(user))
   } catch {
-    // The session cookie remains the source of truth if localStorage is unavailable.
+    // La cookie de sesión sigue siendo la fuente de verdad si localStorage falla.
   }
 }
 
@@ -34,32 +34,32 @@ function clearCachedUser() {
   try {
     localStorage.removeItem(USER_CACHE_KEY)
   } catch {
-    // Ignore storage errors.
+    // Ignorar errores de almacenamiento.
   }
 }
 
 interface AuthState {
   status: AuthStatus
   user: AuthUser | null
-  hasUser: boolean
+  hasUsers: boolean
   offline: boolean
   error: string | null
   check: () => Promise<void>
   login: (username: string, password: string) => Promise<void>
-  setup: (username: string, password: string) => Promise<void>
+  register: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
 }
 
 export const useAuth = create<AuthState>((set) => ({
   status: 'checking',
   user: null,
-  hasUser: true,
+  hasUsers: false,
   offline: false,
   error: null,
 
   check: async () => {
     try {
-      const result = await api<{ hasUser: boolean; user: AuthUser | null }>(
+      const result = await api<{ hasUsers?: boolean; hasUser: boolean; user: AuthUser | null }>(
         '/api/auth/status',
       )
       if (result.user) {
@@ -67,7 +67,7 @@ export const useAuth = create<AuthState>((set) => ({
         set({
           status: 'authenticated',
           user: result.user,
-          hasUser: true,
+          hasUsers: result.hasUsers ?? result.hasUser,
           offline: false,
           error: null,
         })
@@ -76,7 +76,7 @@ export const useAuth = create<AuthState>((set) => ({
         set({
           status: 'unauthenticated',
           user: null,
-          hasUser: result.hasUser,
+          hasUsers: result.hasUsers ?? result.hasUser,
           offline: false,
           error: null,
         })
@@ -88,6 +88,7 @@ export const useAuth = create<AuthState>((set) => ({
           set({
             status: 'authenticated',
             user: cached,
+            hasUsers: true,
             offline: true,
             error: null,
           })
@@ -107,6 +108,7 @@ export const useAuth = create<AuthState>((set) => ({
         set({
           status: 'authenticated',
           user: cached,
+          hasUsers: true,
           offline: true,
           error: null,
         })
@@ -129,14 +131,14 @@ export const useAuth = create<AuthState>((set) => ({
     set({
       status: 'authenticated',
       user: result.user,
-      hasUser: true,
+      hasUsers: true,
       offline: false,
       error: null,
     })
   },
 
-  setup: async (username, password) => {
-    const result = await api<{ user: AuthUser }>('/api/auth/setup', {
+  register: async (username, password) => {
+    const result = await api<{ user: AuthUser }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify({ username, password }),
     })
@@ -144,7 +146,7 @@ export const useAuth = create<AuthState>((set) => ({
     set({
       status: 'authenticated',
       user: result.user,
-      hasUser: true,
+      hasUsers: true,
       offline: false,
       error: null,
     })
@@ -154,13 +156,13 @@ export const useAuth = create<AuthState>((set) => ({
     try {
       await api('/api/auth/logout', { method: 'POST' })
     } catch {
-      // Logging out locally must work even if the network is unavailable.
+      // Cerrar sesión localmente debe funcionar aunque no haya conexión.
     }
     clearCachedUser()
     set({
       status: 'unauthenticated',
       user: null,
-      hasUser: true,
+      hasUsers: true,
       offline: false,
       error: null,
     })

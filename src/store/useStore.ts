@@ -1,5 +1,4 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type {
   AppData,
   Category,
@@ -20,7 +19,6 @@ import {
   createDefaultWallets,
   DEFAULT_SETTINGS,
 } from '../lib/defaults'
-import { createDemoData } from '../lib/demo'
 import { advanceByFrequency, todayISO } from '../lib/dates'
 import { uid } from '../lib/utils'
 
@@ -60,7 +58,6 @@ interface AppStore extends AppData {
 
   setSettings: (patch: Partial<Settings>) => void
   replaceData: (data: AppData) => void
-  loadDemo: () => void
   resetAll: () => void
 }
 
@@ -83,9 +80,7 @@ function buildTransaction(input: TransactionInput): Transaction {
   }
 }
 
-export const useStore = create<AppStore>()(
-  persist(
-    (set, get) => ({
+export const useStore = create<AppStore>()((set, get) => ({
       ...initialData(),
 
       addWallet: (input) => {
@@ -463,35 +458,9 @@ export const useStore = create<AppStore>()(
         })
       },
 
-      loadDemo: () => {
-        const demo = createDemoData()
-        set({ ...demo, settings: get().settings })
-      },
-
       resetAll: () => {
         set({ ...initialData() })
       },
-    }),
-    {
-      name: 'bolsillo.v1',
-      version: 1,
-      merge: (persisted, current) => {
-        const data = (persisted ?? {}) as Partial<AppData>
-        return {
-          ...current,
-          ...data,
-          wallets: (Array.isArray(data.wallets) ? data.wallets : current.wallets).map(
-            (wallet) => ({
-              ...wallet,
-              includeInTotal: wallet.includeInTotal !== false,
-            }),
-          ),
-          transfers: Array.isArray(data.transfers) ? data.transfers : [],
-          settings: { ...current.settings, ...(data.settings ?? {}) },
-        }
-      },
-    },
-  ),
-)
+    }))
 
 

@@ -11,11 +11,11 @@ const ZERO_DECIMAL = new Set([
 ])
 
 export const CURRENCIES = [
+  { code: 'ARS', label: 'Peso argentino', symbol: '$' },
   { code: 'EUR', label: 'Euro', symbol: '€' },
   { code: 'USD', label: 'Dólar estadounidense', symbol: '$' },
   { code: 'MXN', label: 'Peso mexicano', symbol: '$' },
   { code: 'COP', label: 'Peso colombiano', symbol: '$' },
-  { code: 'ARS', label: 'Peso argentino', symbol: '$' },
   { code: 'CLP', label: 'Peso chileno', symbol: '$' },
   { code: 'PEN', label: 'Sol peruano', symbol: 'S/' },
   { code: 'UYU', label: 'Peso uruguayo', symbol: '$U' },
@@ -33,8 +33,9 @@ export function currencySymbol(currency: string) {
 
 export function formatMoney(amount: number, currency: string) {
   const fractionDigits = ZERO_DECIMAL.has(currency) ? 0 : 2
+  const locale = currency === 'ARS' ? 'es-AR' : 'es-ES'
   try {
-    return new Intl.NumberFormat('es-ES', {
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
       minimumFractionDigits: fractionDigits,

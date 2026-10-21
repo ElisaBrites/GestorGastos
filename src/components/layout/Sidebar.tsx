@@ -2,7 +2,6 @@ import { NavLink } from 'react-router-dom'
 import {
   ArrowLeftRight,
   ChartPie,
-  Download,
   Home,
   LayoutGrid,
   Plus,
@@ -17,7 +16,6 @@ import {
 import { useStore } from '../../store/useStore'
 import { useUI } from '../../store/useUI'
 import { todayISO } from '../../lib/dates'
-import { useInstallPrompt } from '../../lib/useInstallPrompt'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { ThemeToggle } from '../ui/ThemeToggle'
@@ -45,18 +43,11 @@ export function Sidebar({
   className?: string
 }) {
   const openTransactionModal = useUI((state) => state.openTransactionModal)
-  const toast = useUI((state) => state.toast)
   const recurring = useStore((state) => state.recurring)
-  const { canInstall, isInstalled, install } = useInstallPrompt()
   const today = todayISO()
   const dueCount = recurring.filter(
     (item) => item.active && !item.autoPost && item.nextDate <= today,
   ).length
-
-  const handleInstall = async () => {
-    const outcome = await install()
-    if (outcome === 'accepted') toast('Bolsillo se instaló correctamente.')
-  }
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -156,21 +147,11 @@ export function Sidebar({
       <div className="mt-2 rounded-2xl border border-line bg-surface2/70 p-3">
         <div className="flex items-center gap-2 text-[12px] font-medium text-fg">
           <ShieldCheck size={14} className="text-income" />
-          Datos locales
+          Copia local
         </div>
         <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Se guardan en este navegador. Exporta una copia desde Ajustes.
+          Tus datos se sincronizan con PostgreSQL. Exportá una copia desde Ajustes.
         </p>
-        {canInstall && !isInstalled && (
-          <button
-            type="button"
-            onClick={handleInstall}
-            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-brand/25 bg-brand-soft px-2.5 py-2 text-[11.5px] font-medium text-brand transition hover:bg-brand/15"
-          >
-            <Download size={13} />
-            Instalar app
-          </button>
-        )}
         <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
           <span className="text-[12px] font-medium text-muted">Apariencia</span>
           <ThemeToggle className="h-8 w-8 border-transparent bg-transparent" />
@@ -184,7 +165,7 @@ export function Sidebar({
           </span>
           Bolsillo v1.0
         </span>
-        <span className="text-[10px] text-faint">€ · $ · S/</span>
+        <span className="text-[10px] text-faint">ARS · USD · EUR</span>
       </div>
     </aside>
   )

@@ -5,7 +5,7 @@ import { pool } from './db.js'
 
 const COOKIE_NAME = 'bolsillo_session'
 const SESSION_DAYS = 30
-const USERNAME_RE = /^[a-zA-Z0-9._-]{3,32}$/
+const USERNAME_RE = /^[\p{L}\p{N}._-]{3,32}$/u
 const LOGIN_WINDOW_MS = 15 * 60 * 1000
 const LOGIN_MAX_ATTEMPTS = 20
 const attempts = new Map()
@@ -68,7 +68,7 @@ function validateCredentials(username, password) {
   if (typeof password !== 'string' || password.length < 8) {
     return { error: 'La contraseña debe tener al menos 8 caracteres.' }
   }
-  if (password.length > 72) {
+  if (Buffer.byteLength(password, 'utf8') > 72) {
     return { error: 'La contraseña no puede superar los 72 caracteres.' }
   }
   return { username: clean }
@@ -154,6 +154,7 @@ authRouter.get('/status', async (req, res, next) => {
     ])
     res.json({
       hasUser: countRows[0].count > 0,
+      hasUsers: countRows[0].count > 0,
       user: user ? publicUser(user) : null,
     })
   } catch (error) {
@@ -161,36 +162,54 @@ authRouter.get('/status', async (req, res, next) => {
   }
 })
 
-authRouter.post('/setup', loginLimiter, async (req, res, next) => {
-  try {
-    const { username, password } = req.body ?? {}
-    const valid = validateCredentials(username, password)
-    if (valid.error) return res.status(400).json({ error: valid.error })
+async function createAccount(req, res, { firstOnly }) {
+  const { username, password } = req.body ?? {}
+  const valid = validateCredentials(username, password)
+  if (valid.error) return res.status(400).json({ error: valid.error })
 
+  if (firstOnly) {
     const { rows } = await pool.query('SELECT count(*)::int AS count FROM users')
     if (rows[0].count > 0) {
       return res.status(409).json({ error: 'Ya existe una cuenta. Inicia sesión.' })
     }
+  }
 
-    const passwordHash = await bcrypt.hash(password, 12)
-    let user
-    try {
-      const inserted = await pool.query(
-        'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username',
-        [valid.username, passwordHash],
-      )
-      user = inserted.rows[0]
-    } catch (error) {
-      if (error.code === '23505') {
-        return res.status(409).json({ error: 'Ya existe una cuenta. Inicia sesión.' })
-      }
-      throw error
+  const passwordHash = await bcrypt.hash(password, 12)
+  let user
+  try {
+    const inserted = await pool.query(
+      'INSERT INTO users (username, password_hash) VALUES ($1, $2) RETURNING id, username',
+      [valid.username, passwordHash],
+    )
+    user = inserted.rows[0]
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(409).json({
+        error: firstOnly
+          ? 'Ya existe una cuenta. Inicia sesión.'
+          : 'Ya existe un usuario con ese nombre.',
+      })
     }
+    throw error
+  }
 
-    const session = await createSession(user.id)
-    setSessionCookie(res, session.token, session.expiresAt)
-    clearAttempts(req)
-    res.status(201).json({ user: publicUser(user) })
+  const session = await createSession(user.id)
+  setSessionCookie(res, session.token, session.expiresAt)
+  clearAttempts(req)
+  res.status(201).json({ user: publicUser(user) })
+}
+
+authRouter.post('/setup', loginLimiter, async (req, res, next) => {
+  try {
+    await createAccount(req, res, { firstOnly: true })
+  } catch (error) {
+    next(error)
+  }
+})
+
+authRouter.post('/register', loginLimiter, async (req, res, next) => {
+  try {
+    await createAccount(req, res, { firstOnly: false })
   } catch (error) {
     next(error)
   }

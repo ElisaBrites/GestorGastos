@@ -1,7 +1,15 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { AlertCircle, LoaderCircle, RefreshCw, Wallet } from 'lucide-react'
 import { ApiError } from '../lib/api'
-import { appDataFromStore, fetchCloudData, saveCloudData } from '../lib/cloud'
+import {
+  appDataFromStore,
+  clearCloudPending,
+  fetchCloudData,
+  hasCloudPending,
+  saveCloudData,
+} from '../lib/cloud'
+import { useUserData } from '../lib/useUserData'
+import { hasLocalUserData } from '../lib/userData'
 import { useAuth } from '../store/useAuth'
 import { useStore } from '../store/useStore'
 import { LoginPage } from '../pages/Login'
@@ -43,38 +51,42 @@ function AuthError({ message, onRetry }: { message: string; onRetry: () => void 
   )
 }
 
-export function AuthGate({ children }: { children: ReactNode }) {
-  const status = useAuth((state) => state.status)
-  const error = useAuth((state) => state.error)
-  const check = useAuth((state) => state.check)
-  const [dataReady, setDataReady] = useState(false)
+function UserDataGate({ userId, children }: { userId: string; children: ReactNode }) {
+  const offline = useAuth((state) => state.offline)
+  const canUseOffline = !offline || hasLocalUserData(userId)
+  const localReady = useUserData(userId, canUseOffline)
+  const [cloudReady, setCloudReady] = useState(false)
 
   useEffect(() => {
-    void check()
-  }, [check])
-
-  useEffect(() => {
-    if (status !== 'authenticated') {
-      setDataReady(false)
-      return
-    }
+    if (!localReady) return
 
     let cancelled = false
+    setCloudReady(false)
 
     const load = async () => {
       if (useAuth.getState().offline) {
-        if (!cancelled) setDataReady(true)
+        if (!cancelled) setCloudReady(true)
         return
       }
 
       try {
+        if (hasCloudPending(userId)) {
+          await saveCloudData(appDataFromStore(useStore.getState()))
+          clearCloudPending(userId)
+          if (!cancelled) setCloudReady(true)
+          return
+        }
+
         const cloud = await fetchCloudData()
         if (cancelled) return
 
-        if (cloud) useStore.getState().replaceData(cloud)
-        else await saveCloudData(appDataFromStore(useStore.getState()))
+        if (cloud) {
+          useStore.getState().replaceData(cloud)
+        } else {
+          await saveCloudData(appDataFromStore(useStore.getState()))
+        }
 
-        if (!cancelled) setDataReady(true)
+        if (!cancelled) setCloudReady(true)
       } catch (caught) {
         if (cancelled) return
 
@@ -85,7 +97,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
         // Si falla la red o el servidor, los datos locales siguen disponibles.
         useAuth.setState({ offline: true })
-        setDataReady(true)
+        setCloudReady(true)
       }
     }
 
@@ -93,14 +105,40 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [status])
+  }, [localReady, userId])
+
+  if (!canUseOffline) {
+    return (
+      <AuthError
+        message="No hay conexión y este usuario no tiene una copia local de sus datos. Conéctate a internet para cargarlos desde PostgreSQL."
+        onRetry={() => void useAuth.getState().check()}
+      />
+    )
+  }
+
+  if (!localReady || !cloudReady) return <AuthLoading label="Cargando tus datos…" />
+  return <>{children}</>
+}
+
+export function AuthGate({ children }: { children: ReactNode }) {
+  const status = useAuth((state) => state.status)
+  const user = useAuth((state) => state.user)
+  const error = useAuth((state) => state.error)
+  const check = useAuth((state) => state.check)
+
+  useEffect(() => {
+    void check()
+  }, [check])
 
   if (status === 'checking') return <AuthLoading label="Comprobando sesión…" />
   if (status === 'error') {
     return <AuthError message={error ?? 'No se pudo conectar con el servidor.'} onRetry={check} />
   }
-  if (status === 'unauthenticated') return <LoginPage />
-  if (!dataReady) return <AuthLoading label="Cargando tus datos…" />
+  if (status !== 'authenticated' || !user) return <LoginPage />
 
-  return <>{children}</>
+  return (
+    <UserDataGate key={user.id} userId={user.id}>
+      {children}
+    </UserDataGate>
+  )
 }

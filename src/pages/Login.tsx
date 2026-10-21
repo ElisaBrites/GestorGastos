@@ -1,34 +1,50 @@
 import { useState, type FormEvent } from 'react'
-import { AlertCircle, LockKeyhole, Wallet } from 'lucide-react'
+import { AlertCircle, LockKeyhole, UserPlus, Wallet } from 'lucide-react'
 import { ApiError } from '../lib/api'
+import { cn } from '../lib/utils'
 import { useAuth } from '../store/useAuth'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 
+type Mode = 'login' | 'register'
+
 export function LoginPage() {
-  const hasUser = useAuth((state) => state.hasUser)
+  const hasUsers = useAuth((state) => state.hasUsers)
   const login = useAuth((state) => state.login)
-  const setup = useAuth((state) => state.setup)
+  const register = useAuth((state) => state.register)
+  const [mode, setMode] = useState<Mode>(hasUsers ? 'login' : 'register')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const isSetup = !hasUser
+  const isRegister = mode === 'register'
+
+  const changeMode = (next: Mode) => {
+    setMode(next)
+    setError(null)
+    setPassword('')
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError(null)
+
+    if (!username.trim()) {
+      setError('Escribe un nombre de usuario.')
+      return
+    }
+    if (!password) {
+      setError('Escribe una contraseña.')
+      return
+    }
+
     setLoading(true)
     try {
-      if (isSetup) await setup(username.trim(), password)
+      if (isRegister) await register(username.trim(), password)
       else await login(username.trim(), password)
     } catch (caught) {
-      if (caught instanceof ApiError) {
-        setError(caught.message)
-        if (caught.status === 409 && isSetup) await useAuth.getState().check()
-      } else {
-        setError('No se pudo conectar con el servidor. Revisa tu conexión.')
-      }
+      if (caught instanceof ApiError) setError(caught.message)
+      else setError('No se pudo conectar con el servidor. Revisa tu conexión.')
     } finally {
       setLoading(false)
     }
@@ -36,7 +52,7 @@ export function LoginPage() {
 
   return (
     <div className="grid min-h-dvh place-items-center bg-bg px-4 py-8">
-      <div className="w-full max-w-[380px]">
+      <div className="w-full max-w-[390px]">
         <div className="mb-6 flex flex-col items-center text-center">
           <span className="gradient-brand grid h-14 w-14 place-items-center rounded-[18px] text-white shadow-[0_16px_30px_-16px_rgba(99,85,242,0.9)]">
             <Wallet size={27} strokeWidth={2.2} />
@@ -44,22 +60,51 @@ export function LoginPage() {
           <h1 className="mt-4 text-[27px] font-semibold tracking-[-0.04em] text-fg">
             Bolsillo
           </h1>
-          <p className="mt-1.5 max-w-[280px] text-[12.5px] leading-relaxed text-muted">
-            {isSetup
-              ? 'Crea el usuario y la contraseña de esta instalación.'
-              : 'Entra con tu usuario y contraseña para acceder a tus finanzas.'}
+          <p className="mt-1.5 max-w-[300px] text-[12.5px] leading-relaxed text-muted">
+            {hasUsers
+              ? 'Entra con tu usuario o crea una cuenta nueva para empezar.'
+              : 'Crea el primer usuario de Bolsillo para empezar.'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="card p-5 sm:p-6">
+          <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-surface2 p-1">
+            <button
+              type="button"
+              onClick={() => changeMode('login')}
+              className={cn(
+                'flex h-8 items-center justify-center gap-1.5 rounded-lg text-[11.5px] font-medium transition',
+                !isRegister ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg',
+              )}
+            >
+              <LockKeyhole size={13} />
+              Entrar
+            </button>
+            <button
+              type="button"
+              onClick={() => changeMode('register')}
+              className={cn(
+                'flex h-8 items-center justify-center gap-1.5 rounded-lg text-[11.5px] font-medium transition',
+                isRegister ? 'bg-surface text-fg shadow-sm' : 'text-muted hover:text-fg',
+              )}
+            >
+              <UserPlus size={13} />
+              Crear cuenta
+            </button>
+          </div>
+
           <div className="mb-4 flex items-center gap-2.5">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-soft text-brand">
-              <LockKeyhole size={17} />
+              {isRegister ? <UserPlus size={17} /> : <LockKeyhole size={17} />}
             </span>
             <div>
-              <h2 className="section-title">{isSetup ? 'Primera configuración' : 'Iniciar sesión'}</h2>
+              <h2 className="section-title">
+                {isRegister ? 'Nueva cuenta' : 'Iniciar sesión'}
+              </h2>
               <p className="mt-0.5 text-[11px] text-muted">
-                {isSetup ? 'Solo se crea una cuenta.' : 'Tus datos se cargan desde PostgreSQL.'}
+                {isRegister
+                  ? 'Cada usuario tiene sus propios datos en PostgreSQL.'
+                  : 'Tus datos se cargan desde PostgreSQL.'}
               </p>
             </div>
           </div>
@@ -83,11 +128,11 @@ export function LoginPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              autoComplete={isSetup ? 'new-password' : 'current-password'}
+              autoComplete={isRegister ? 'new-password' : 'current-password'}
               required
-              minLength={isSetup ? 8 : undefined}
+              minLength={isRegister ? 8 : undefined}
               maxLength={72}
-              placeholder={isSetup ? 'Mínimo 8 caracteres' : 'Tu contraseña'}
+              placeholder={isRegister ? 'Mínimo 8 caracteres' : 'Tu contraseña'}
             />
           </div>
 
@@ -100,22 +145,24 @@ export function LoginPage() {
 
           <Button type="submit" className="mt-5 w-full" disabled={loading}>
             {loading
-              ? 'Comprobando…'
-              : isSetup
+              ? isRegister
+                ? 'Creando cuenta…'
+                : 'Entrando…'
+              : isRegister
                 ? 'Crear cuenta y entrar'
                 : 'Entrar en Bolsillo'}
           </Button>
 
-          {isSetup && (
+          {isRegister && (
             <p className="mt-3 text-center text-[10.5px] leading-relaxed text-faint">
-              Usa al menos 8 caracteres. Esta cuenta se guarda en tu base de datos.
+              Usa al menos 8 caracteres. La cuenta se guarda en la base de datos.
             </p>
           )}
         </form>
 
         <p className="mt-5 text-center text-[10.5px] leading-relaxed text-faint">
-          Tus datos se guardan en PostgreSQL y también en este dispositivo para poder
-          consultarlos sin conexión.
+          Tus datos se guardan en PostgreSQL y también en este dispositivo como copia
+          local de respaldo.
         </p>
       </div>
     </div>

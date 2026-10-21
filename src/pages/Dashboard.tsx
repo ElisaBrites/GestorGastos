@@ -116,10 +116,8 @@ export function Dashboard() {
   const transfers = useStore((state) => state.transfers)
   const recurring = useStore((state) => state.recurring)
   const currency = useStore((state) => state.settings.currency)
-  const loadDemo = useStore((state) => state.loadDemo)
   const openTransactionModal = useUI((state) => state.openTransactionModal)
   const openTransferModal = useUI((state) => state.openTransferModal)
-  const toast = useUI((state) => state.toast)
   const referenceDate = useUI((state) => state.referenceDate)
 
   const month = monthKey(referenceDate)
@@ -312,17 +310,10 @@ export function Dashboard() {
             <div className="min-w-0 flex-1">
               <h2 className="text-[15px] font-semibold text-fg">Tu espacio está listo</h2>
               <p className="mt-1 text-[13px] leading-relaxed text-muted">
-                Registra tu primer movimiento o carga seis meses de datos de ejemplo para
-                explorar todas las estadísticas.
+                Registra tu primer movimiento para empezar a ver tus estadísticas.
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => {
-                loadDemo()
-                toast('Datos de ejemplo cargados.')
-              }}>
-                Cargar ejemplo
-              </Button>
               <Button onClick={() => openTransactionModal()}>
                 <Plus size={15} />
                 Añadir movimiento
