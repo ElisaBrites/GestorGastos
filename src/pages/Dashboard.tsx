@@ -9,7 +9,6 @@ import {
   PiggyBank,
   Plus,
   Repeat,
-  Sparkles,
   WalletCards,
 } from 'lucide-react'
 import { useStore } from '../store/useStore'
@@ -299,29 +298,6 @@ export function Dashboard() {
           </>
         }
       />
-
-      {transactions.length === 0 && transfers.length === 0 && (
-        <div className="relative overflow-hidden rounded-2xl border border-brand/20 bg-brand-soft p-5 sm:p-6">
-          <div className="pointer-events-none absolute -right-16 -top-24 h-56 w-56 rounded-full border-[20px] border-brand/10" />
-          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-surface text-brand shadow-sm">
-              <Sparkles size={20} />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-[15px] font-semibold text-fg">Tu espacio está listo</h2>
-              <p className="mt-1 text-[13px] leading-relaxed text-muted">
-                Registra tu primer movimiento para empezar a ver tus estadísticas.
-              </p>
-            </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
-              <Button onClick={() => openTransactionModal()}>
-                <Plus size={15} />
-                Añadir movimiento
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <div
