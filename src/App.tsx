@@ -6,6 +6,7 @@ import { Transactions } from './pages/Transactions'
 import { RecurringPage } from './pages/RecurringPage'
 import { Wallets } from './pages/Wallets'
 import { Categories } from './pages/Categories'
+import { Budgets } from './pages/Budgets'
 import { Stats } from './pages/Stats'
 import { Settings } from './pages/Settings'
 
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="fijos" element={<RecurringPage />} />
           <Route path="billeteras" element={<Wallets />} />
           <Route path="categorias" element={<Categories />} />
+          <Route path="presupuestos" element={<Budgets />} />
           <Route path="estadisticas" element={<Stats />} />
           <Route path="ajustes" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />

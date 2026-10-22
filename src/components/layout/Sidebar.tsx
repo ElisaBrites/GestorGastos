@@ -1,21 +1,25 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   ArrowLeftRight,
   ChartPie,
   Home,
   LayoutGrid,
+  LogOut,
+  PiggyBank,
   Plus,
   Repeat,
   Settings,
-  ShieldCheck,
   Tags,
   Wallet,
   WalletCards,
   X,
 } from 'lucide-react'
 import { useStore } from '../../store/useStore'
+import { useAuth } from '../../store/useAuth'
 import { useUI } from '../../store/useUI'
 import { todayISO } from '../../lib/dates'
+import { logoutWithSync } from '../../lib/session'
 import { cn } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { ThemeToggle } from '../ui/ThemeToggle'
@@ -29,6 +33,7 @@ const primaryNav = [
 const secondaryNav = [
   { to: '/billeteras', label: 'Billeteras', icon: WalletCards },
   { to: '/categorias', label: 'Categorías', icon: Tags },
+  { to: '/presupuestos', label: 'Presupuestos', icon: PiggyBank },
   { to: '/estadisticas', label: 'Estadísticas', icon: ChartPie },
   { to: '/ajustes', label: 'Ajustes', icon: Settings },
 ]
@@ -44,10 +49,23 @@ export function Sidebar({
 }) {
   const openTransactionModal = useUI((state) => state.openTransactionModal)
   const recurring = useStore((state) => state.recurring)
+  const user = useAuth((state) => state.user)
+  const offline = useAuth((state) => state.offline)
+  const [loggingOut, setLoggingOut] = useState(false)
   const today = todayISO()
   const dueCount = recurring.filter(
     (item) => item.active && !item.autoPost && item.nextDate <= today,
   ).length
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await logoutWithSync()
+    } finally {
+      setLoggingOut(false)
+    }
+  }
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -145,13 +163,41 @@ export function Sidebar({
       </nav>
 
       <div className="mt-2 rounded-2xl border border-line bg-surface2/70 p-3">
-        <div className="flex items-center gap-2 text-[12px] font-medium text-fg">
-          <ShieldCheck size={14} className="text-income" />
-          Copia local
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-soft text-[13px] font-semibold uppercase text-brand">
+            {user?.username?.trim().charAt(0) || '?'}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12.5px] font-semibold text-fg">
+              {user?.username ?? 'Sesión activa'}
+            </p>
+            <p
+              className={cn(
+                'mt-0.5 flex items-center gap-1 text-[10.5px] font-medium',
+                offline ? 'text-warn' : 'text-faint',
+              )}
+            >
+              <span
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  offline ? 'bg-warn' : 'bg-income',
+                )}
+              />
+              {offline ? 'Sin conexión' : 'Sincronizado'}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            disabled={loggingOut}
+            className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium text-muted transition hover:bg-expense-soft hover:text-expense disabled:opacity-50"
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+          >
+            <LogOut size={12} />
+            {loggingOut ? 'Saliendo…' : 'Salir'}
+          </button>
         </div>
-        <p className="mt-1 text-[11px] leading-relaxed text-faint">
-          Tus datos se sincronizan con PostgreSQL. Exportá una copia desde Ajustes.
-        </p>
         <div className="mt-3 flex items-center justify-between border-t border-line pt-2.5">
           <span className="text-[12px] font-medium text-muted">Apariencia</span>
           <ThemeToggle className="h-8 w-8 border-transparent bg-transparent" />

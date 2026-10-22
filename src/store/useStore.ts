@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import type {
   AppData,
+  Budget,
+  BudgetInput,
   Category,
   CategoryInput,
   Recurring,
@@ -56,6 +58,10 @@ interface AppStore extends AppData {
   postRecurringNow: (id: string) => ActionResult
   processRecurring: () => number
 
+  addBudget: (input: BudgetInput) => ActionResult
+  updateBudget: (id: string, input: BudgetInput) => ActionResult
+  deleteBudget: (id: string) => void
+
   setSettings: (patch: Partial<Settings>) => void
   replaceData: (data: AppData) => void
   resetAll: () => void
@@ -68,6 +74,7 @@ function initialData(): AppData {
     transactions: [],
     transfers: [],
     recurring: [],
+    budgets: [],
     settings: { ...DEFAULT_SETTINGS },
   }
 }
@@ -78,6 +85,59 @@ function buildTransaction(input: TransactionInput): Transaction {
     id: uid(),
     createdAt: new Date().toISOString(),
   }
+}
+
+function normalizeBudgetInput(input: BudgetInput): BudgetInput {
+  return {
+    categoryId: input.categoryId,
+    subcategoryId: input.subcategoryId || undefined,
+    amount: Number(input.amount),
+    startDate: input.startDate,
+    endDate: input.endDate,
+  }
+}
+
+function validateBudgetInput(
+  input: BudgetInput,
+  state: Pick<AppData, 'categories' | 'budgets'>,
+  excludeId?: string,
+): string | null {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) {
+    return 'Escribe un importe mayor que cero.'
+  }
+  if (!input.startDate || !input.endDate) {
+    return 'Elige las fechas de inicio y fin del periodo.'
+  }
+  if (input.startDate > input.endDate) {
+    return 'La fecha de inicio no puede ser posterior a la fecha de fin.'
+  }
+
+  const category = state.categories.find((item) => item.id === input.categoryId)
+  if (!category) return 'La categoría no existe.'
+  if (category.type !== 'expense') {
+    return 'Solo puedes asignar presupuestos a categorías de gasto.'
+  }
+  if (
+    input.subcategoryId &&
+    !category.subcategories.some((sub) => sub.id === input.subcategoryId)
+  ) {
+    return 'La subcategoría no existe.'
+  }
+
+  const scope = input.subcategoryId ?? ''
+  const overlap = state.budgets.some(
+    (budget) =>
+      budget.id !== excludeId &&
+      budget.categoryId === input.categoryId &&
+      (budget.subcategoryId ?? '') === scope &&
+      budget.startDate <= input.endDate &&
+      input.startDate <= budget.endDate,
+  )
+  if (overlap) {
+    return 'Ya existe un presupuesto para ese mismo ámbito que se solapa con ese periodo.'
+  }
+
+  return null
 }
 
 export const useStore = create<AppStore>()((set, get) => ({
@@ -164,6 +224,7 @@ export const useStore = create<AppStore>()((set, get) => ({
           }
         }
         set({ categories: state.categories.filter((category) => category.id !== id) })
+        set({ budgets: state.budgets.filter((budget) => budget.categoryId !== id) })
         return { ok: true }
       },
 
@@ -253,6 +314,9 @@ export const useStore = create<AppStore>()((set, get) => ({
             item.subcategoryId === subcategoryId
               ? { ...item, subcategoryId: undefined }
               : item,
+          ),
+          budgets: state.budgets.filter(
+            (budget) => budget.subcategoryId !== subcategoryId,
           ),
         }))
       },
@@ -438,6 +502,44 @@ export const useStore = create<AppStore>()((set, get) => ({
         return created
       },
 
+      addBudget: (rawInput) => {
+        const input = normalizeBudgetInput(rawInput)
+        const state = get()
+        const error = validateBudgetInput(input, state)
+        if (error) return { ok: false, error }
+
+        const budget: Budget = {
+          ...input,
+          id: uid(),
+          createdAt: new Date().toISOString(),
+        }
+        set({ budgets: [...state.budgets, budget] })
+        return { ok: true, id: budget.id }
+      },
+
+      updateBudget: (id, rawInput) => {
+        const input = normalizeBudgetInput(rawInput)
+        const state = get()
+        if (!state.budgets.some((budget) => budget.id === id)) {
+          return { ok: false, error: 'El presupuesto no existe.' }
+        }
+        const error = validateBudgetInput(input, state, id)
+        if (error) return { ok: false, error }
+
+        set({
+          budgets: state.budgets.map((budget) =>
+            budget.id === id ? { ...budget, ...input } : budget,
+          ),
+        })
+        return { ok: true, id }
+      },
+
+      deleteBudget: (id) => {
+        set((state) => ({
+          budgets: state.budgets.filter((budget) => budget.id !== id),
+        }))
+      },
+
       setSettings: (patch) => {
         set((state) => ({ settings: { ...state.settings, ...patch } }))
       },
@@ -454,6 +556,7 @@ export const useStore = create<AppStore>()((set, get) => ({
           transactions: Array.isArray(data.transactions) ? data.transactions : [],
           transfers: Array.isArray(data.transfers) ? data.transfers : [],
           recurring: Array.isArray(data.recurring) ? data.recurring : [],
+          budgets: Array.isArray(data.budgets) ? data.budgets : [],
           settings: { ...DEFAULT_SETTINGS, ...(data.settings ?? {}) },
         })
       },

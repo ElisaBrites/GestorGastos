@@ -22,6 +22,14 @@ import {
   walletIsIncluded,
 } from '../lib/calc'
 import {
+  budgetPeriodLabel,
+  budgetProgress,
+  budgetScopeLabel,
+  budgetTone,
+  budgetToneClasses,
+  summarizeBudgets,
+} from '../lib/budgets'
+import {
   lastNMonthKeys,
   monthKey,
   monthLabel,
@@ -114,6 +122,7 @@ export function Dashboard() {
   const transactions = useStore((state) => state.transactions)
   const transfers = useStore((state) => state.transfers)
   const recurring = useStore((state) => state.recurring)
+  const budgets = useStore((state) => state.budgets)
   const currency = useStore((state) => state.settings.currency)
   const openTransactionModal = useUI((state) => state.openTransactionModal)
   const openTransferModal = useUI((state) => state.openTransferModal)
@@ -208,6 +217,14 @@ export function Dashboard() {
       ? [...top, { id: 'rest', name: 'Otras', value: rest, color: '#94a3b8' }]
       : top
   }, [expenseByCategory])
+
+  const budgetSummary = useMemo(
+    () => summarizeBudgets(budgets, transactions, referenceDate),
+    [budgets, transactions, referenceDate],
+  )
+  const activeBudgets = budgetSummary.budgets
+  const budgetToneValue = budgetTone(budgetSummary.percent)
+  const budgetClasses = budgetToneClasses(budgetToneValue)
 
   const cashflow = useMemo<CashflowPoint[]>(
     () =>
@@ -622,6 +639,85 @@ export function Dashboard() {
               )}
             </div>
           </section>
+
+          {activeBudgets.length > 0 && (
+            <section className="card p-5">
+              <SectionHeader
+                title="Presupuestos"
+                subtitle={`${activeBudgets.length} activo${activeBudgets.length === 1 ? '' : 's'} en este periodo`}
+                action={
+                  <Link
+                    to="/presupuestos"
+                    className="inline-flex items-center gap-1 text-[11.5px] font-medium text-brand transition hover:gap-1.5"
+                  >
+                    Gestionar
+                    <ArrowRight size={13} />
+                  </Link>
+                }
+              />
+              <div className="mt-3 rounded-xl border border-line bg-surface2/60 px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2 text-[11px]">
+                  <span className="text-muted">Consumo global</span>
+                  <span className={cn('font-semibold tnum', budgetClasses.text)}>
+                    {formatPercent(budgetSummary.percent, 0)}
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-surface2">
+                  <div
+                    className={cn('h-full rounded-full transition-all', budgetClasses.bar)}
+                    style={{
+                      width: `${Math.max(0, Math.min(100, budgetSummary.percent))}%`,
+                    }}
+                  />
+                </div>
+                <p className="mt-1.5 text-[10.5px] text-faint tnum">
+                  {formatMoney(budgetSummary.spent, currency)} de{' '}
+                  {formatMoney(budgetSummary.total, currency)}
+                </p>
+              </div>
+              <div className="mt-2.5 space-y-2">
+                {activeBudgets.slice(0, 4).map((budget) => {
+                  const progress = budgetProgress(budget, transactions, referenceDate)
+                  const category = categoryMap.get(budget.categoryId)
+                  const tone = budgetToneClasses(budgetTone(progress.percent))
+                  return (
+                    <Link
+                      key={budget.id}
+                      to="/presupuestos"
+                      className="block rounded-lg px-1 py-1 transition hover:bg-surface2"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[11.5px]">
+                        <span className="min-w-0 truncate text-muted">
+                          {budgetScopeLabel(budget, category)}
+                        </span>
+                        <span className="shrink-0 font-medium text-fg tnum">
+                          {formatMoney(progress.spent, currency)}
+                          <span className="font-normal text-faint">
+                            {' '}
+                            / {formatMoney(budget.amount, currency)}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="mt-1 h-1 overflow-hidden rounded-full bg-surface2">
+                        <div
+                          className={cn('h-full rounded-full', tone.bar)}
+                          style={{
+                            width: `${Math.max(0, Math.min(100, progress.percent))}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="mt-0.5 text-[9.5px] text-faint">
+                        {budgetPeriodLabel(budget)}
+                        {progress.over
+                          ? ` · ${formatMoney(Math.abs(progress.remaining), currency)} excedidos`
+                          : ` · ${formatMoney(progress.remaining, currency)} disponibles`}
+                      </p>
+                    </Link>
+                  )
+                })}
+              </div>
+            </section>
+          )}
 
           {referenceDate >= today && scheduledMovements.length > 0 && (
             <section className="card p-5">

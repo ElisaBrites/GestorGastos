@@ -28,6 +28,7 @@ function normalizeAppData(value: unknown, legacy = false): AppData | null {
     transactions: Array.isArray(raw.transactions) ? raw.transactions : [],
     transfers: Array.isArray(raw.transfers) ? raw.transfers : [],
     recurring: Array.isArray(raw.recurring) ? raw.recurring : [],
+    budgets: Array.isArray(raw.budgets) ? raw.budgets : [],
     settings,
   }
 }
@@ -39,6 +40,7 @@ export function appDataFromStore(state: AppData): AppData {
     transactions: state.transactions,
     transfers: state.transfers,
     recurring: state.recurring,
+    budgets: state.budgets,
     settings: state.settings,
   }
 }
@@ -89,6 +91,7 @@ function dataScore(data: AppData) {
     data.transactions.length +
     data.transfers.length +
     data.recurring.length +
+    (data.budgets?.length ?? 0) +
     data.wallets.length +
     data.categories.length
   )

@@ -76,6 +76,18 @@ export interface Recurring {
   createdAt: string
 }
 
+export interface Budget {
+  id: string
+  /** Categoría de gasto a la que se aplica el presupuesto. */
+  categoryId: string
+  /** Si falta, el presupuesto controla la categoría completa. */
+  subcategoryId?: string
+  amount: number
+  startDate: string
+  endDate: string
+  createdAt: string
+}
+
 export interface Settings {
   theme: ThemeMode
   currency: string
@@ -87,6 +99,7 @@ export interface AppData {
   transactions: Transaction[]
   transfers: Transfer[]
   recurring: Recurring[]
+  budgets: Budget[]
   settings: Settings
 }
 
@@ -105,6 +118,14 @@ export interface RecurringInput {
   endDate?: string
   autoPost: boolean
   active: boolean
+}
+
+export interface BudgetInput {
+  categoryId: string
+  subcategoryId?: string
+  amount: number
+  startDate: string
+  endDate: string
 }
 
 export interface CategoryInput {

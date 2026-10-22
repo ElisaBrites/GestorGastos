@@ -23,6 +23,7 @@ function cleanAppData(value) {
     transactions: value.transactions,
     transfers: value.transfers,
     recurring: value.recurring,
+    budgets: Array.isArray(value.budgets) ? value.budgets : [],
     settings: value.settings,
   }
 }

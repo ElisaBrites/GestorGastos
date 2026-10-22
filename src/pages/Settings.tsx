@@ -19,7 +19,7 @@ import {
 import { useAuth } from '../store/useAuth'
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
-import { appDataFromStore, clearCloudPending, saveCloudData } from '../lib/cloud'
+import { logoutWithSync } from '../lib/session'
 import { CURRENCIES, formatMoney } from '../lib/format'
 import { DEFAULT_SETTINGS } from '../lib/defaults'
 import { getLocalBackupForImport } from '../lib/userData'
@@ -78,13 +78,13 @@ export function Settings() {
   const transactions = useStore((state) => state.transactions)
   const transfers = useStore((state) => state.transfers)
   const recurring = useStore((state) => state.recurring)
+  const budgets = useStore((state) => state.budgets)
   const setSettings = useStore((state) => state.setSettings)
   const replaceData = useStore((state) => state.replaceData)
   const resetAll = useStore((state) => state.resetAll)
   const toast = useUI((state) => state.toast)
   const user = useAuth((state) => state.user)
   const offline = useAuth((state) => state.offline)
-  const logout = useAuth((state) => state.logout)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [confirmReset, setConfirmReset] = useState(false)
@@ -95,15 +95,7 @@ export function Settings() {
   )
 
   const handleLogout = async () => {
-    if (user) {
-      try {
-        await saveCloudData(appDataFromStore(useStore.getState()))
-        clearCloudPending(user.id)
-      } catch {
-        // El cierre de sesión local debe funcionar aunque no haya conexión.
-      }
-    }
-    await logout()
+    await logoutWithSync()
   }
 
   const themes: { value: ThemeMode; label: string; icon: typeof Sun }[] = [
@@ -113,13 +105,13 @@ export function Settings() {
   ]
 
   const handleExport = () => {
-    const { wallets, categories, transactions, transfers, recurring, settings } =
+    const { wallets, categories, transactions, transfers, recurring, budgets, settings } =
       useStore.getState()
     const payload = {
       app: 'bolsillo',
       version: 2,
       exportedAt: new Date().toISOString(),
-      data: { wallets, categories, transactions, transfers, recurring, settings },
+      data: { wallets, categories, transactions, transfers, recurring, budgets, settings },
     }
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: 'application/json',
@@ -175,6 +167,17 @@ export function Settings() {
               }))
           : [],
         recurring: raw.recurring.filter((item: any) => item && typeof item.id === 'string'),
+        budgets: Array.isArray(raw.budgets)
+          ? raw.budgets.filter(
+              (item: any) =>
+                item &&
+                typeof item.id === 'string' &&
+                typeof item.categoryId === 'string' &&
+                typeof item.amount === 'number' &&
+                typeof item.startDate === 'string' &&
+                typeof item.endDate === 'string',
+            )
+          : [],
         settings: {
           ...DEFAULT_SETTINGS,
           ...(raw.settings && typeof raw.settings === 'object' ? raw.settings : {}),
@@ -327,7 +330,7 @@ export function Settings() {
               <p className="text-[11px] text-muted">
                 {transactions.length} movimientos · {transfers.length} transferencias ·{' '}
                 {wallets.length} billeteras · {categories.length} categorías ·{' '}
-                {recurring.length} fijos
+                {recurring.length} fijos · {budgets.length} presupuestos
               </p>
             </div>
           </div>

@@ -34,6 +34,7 @@ export function appDataFromStore(state: AppData): AppData {
     transactions: state.transactions,
     transfers: state.transfers,
     recurring: state.recurring,
+    budgets: state.budgets,
     settings: state.settings,
   }
 }

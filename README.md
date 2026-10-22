@@ -109,8 +109,9 @@ El esquema está en `server/schema.sql`:
 - **Fijos programados**: ingresos y gastos recurrentes (semanal, mensual, trimestral o anual). Los automáticos se registran al abrir la app; los manuales quedan pendientes y se pueden registrar desde el aviso. Sus vencimientos siguen el calendario real y no se desplazan con la fecha de referencia.
 - **Billeteras**: varias cuentas (efectivo, banco, ahorros…) con saldo inicial, saldo a la fecha de referencia e ingresos/gastos del mes. Cada billetera se puede excluir del balance total con el botón de visibilidad de la tarjeta o desde su ficha.
 - **Categorías**: categorías y subcategorías con icono y color propios; se pueden crear y editar, incluso al vuelo desde el formulario de movimiento.
+- **Presupuestos**: límite de gasto por categoría completa o por una subcategoría concreta, para el periodo de fechas que elijas (mes, trimestre, año o fechas personalizadas). Muestra gastado, disponible, porcentaje consumido y avisos al acercarse o superar el límite. Se calculan con los gastos hasta la fecha de referencia.
 - **Estadísticas**: análisis por categoría y subcategoría para gastos, ingresos o **ambos juntos**, con tarjetas combinadas de ingresos, gastos, balance y actividad. Permite filtrar por mes/año/todo y **seleccionar varias billeteras a la vez** (o todas). Incluye evolución de 6 meses, subcategorías destacadas y paneles separados de ingresos y gastos cuando se usa el modo «Ambos». Solo se contabilizan los movimientos hasta la fecha de referencia.
-- **Ajustes**: tema claro/oscuro/sistema, moneda (ARS por defecto), cuenta y cierre de sesión, estado de sincronización, exportación e importación JSON (incluye transferencias y billeteras excluidas del total) y restablecimiento.
+- **Ajustes**: tema claro/oscuro/sistema, moneda (ARS por defecto), cuenta y cierre de sesión, estado de sincronización, exportación e importación JSON (incluye transferencias, presupuestos y billeteras excluidas del total) y restablecimiento.
 
 ## Tecnología
 

@@ -3,6 +3,7 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Pencil,
+  PiggyBank,
   Plus,
   Tag,
   Tags,
@@ -12,10 +13,17 @@ import {
 import { useStore } from '../store/useStore'
 import { useUI } from '../store/useUI'
 import { monthKey } from '../lib/dates'
-import { formatMoney } from '../lib/format'
+import {
+  budgetPeriodLabel,
+  budgetProgress,
+  budgetTone,
+  budgetToneClasses,
+  budgetsForCategory,
+} from '../lib/budgets'
+import { formatMoney, formatPercent } from '../lib/format'
 import { hexToRgba } from '../lib/utils'
 import { subcategoryVisual } from '../lib/visuals'
-import type { Category, Subcategory, TxType } from '../types'
+import type { Budget, Category, Subcategory, Transaction, TxType } from '../types'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button } from '../components/ui/Button'
 import { Segmented } from '../components/ui/Segmented'
@@ -24,24 +32,38 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { EmptyState } from '../components/ui/EmptyState'
 import { CategoryModal } from '../components/CategoryModal'
 import { SubcategoryModal } from '../components/SubcategoryModal'
+import { BudgetModal } from '../components/BudgetModal'
+import { cn } from '../lib/utils'
 
 function CategoryCard({
   category,
   monthTotal,
+  budgets,
+  transactions,
+  referenceDate,
   currency,
   onEdit,
   onDelete,
+  onAddBudget,
+  onEditBudget,
 }: {
   category: Category
   monthTotal: number
+  budgets: Budget[]
+  transactions: Transaction[]
+  referenceDate: string
   currency: string
   onEdit: () => void
   onDelete: () => void
+  onAddBudget: () => void
+  onEditBudget: (budget: Budget) => void
 }) {
   const deleteSubcategory = useStore((state) => state.deleteSubcategory)
   const toast = useUI((state) => state.toast)
   const [subModalOpen, setSubModalOpen] = useState(false)
   const [editingSub, setEditingSub] = useState<Subcategory | undefined>()
+
+  const activeBudgets = budgetsForCategory(budgets, category.id, referenceDate)
 
   const openCreateSub = () => {
     setEditingSub(undefined)
@@ -82,6 +104,17 @@ function CategoryCard({
             </p>
           </div>
           <div className="flex items-center gap-1">
+            {category.type === 'expense' && (
+              <button
+                type="button"
+                onClick={onAddBudget}
+                className="grid h-7 w-7 place-items-center rounded-lg text-faint transition hover:bg-brand-soft hover:text-brand"
+                aria-label={`Añadir presupuesto a ${category.name}`}
+                title="Añadir presupuesto"
+              >
+                <PiggyBank size={13} />
+              </button>
+            )}
             <button
               type="button"
               onClick={onEdit}
@@ -102,6 +135,61 @@ function CategoryCard({
             </button>
           </div>
         </div>
+
+        {activeBudgets.length > 0 && (
+          <div className="relative mt-3 space-y-2 border-t border-line pt-3">
+            {activeBudgets.map((budget) => {
+              const progress = budgetProgress(budget, transactions, referenceDate)
+              const tone = budgetToneClasses(budgetTone(progress.percent))
+              const subcategory = category.subcategories.find(
+                (sub) => sub.id === budget.subcategoryId,
+              )
+              return (
+                <button
+                  key={budget.id}
+                  type="button"
+                  onClick={() => onEditBudget(budget)}
+                  className="block w-full rounded-lg text-left transition hover:bg-surface2/70"
+                  title="Editar presupuesto"
+                >
+                  <div className="flex items-center justify-between gap-2 text-[10.5px]">
+                    <span className="min-w-0 truncate text-muted">
+                      {subcategory?.name ?? 'Toda la categoría'}
+                    </span>
+                    <span className="shrink-0 font-medium text-fg tnum">
+                      {formatMoney(progress.spent, currency)}
+                      <span className="font-normal text-faint">
+                        {' '}
+                        / {formatMoney(budget.amount, currency)}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <div className="h-1 flex-1 overflow-hidden rounded-full bg-surface2">
+                      <div
+                        className={cn('h-full rounded-full transition-all', tone.bar)}
+                        style={{
+                          width: `${Math.max(0, Math.min(100, progress.percent))}%`,
+                        }}
+                      />
+                    </div>
+                    <span
+                      className={cn(
+                        'w-8 shrink-0 text-right text-[9.5px] font-semibold tnum',
+                        tone.text,
+                      )}
+                    >
+                      {formatPercent(progress.percent, 0)}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[9px] text-faint">
+                    {budgetPeriodLabel(budget)}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         <div className="relative mt-3 flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
           {category.subcategories.map((sub) => {
@@ -169,6 +257,7 @@ function CategoryCard({
 export function Categories() {
   const categories = useStore((state) => state.categories)
   const transactions = useStore((state) => state.transactions)
+  const budgets = useStore((state) => state.budgets)
   const currency = useStore((state) => state.settings.currency)
   const deleteCategory = useStore((state) => state.deleteCategory)
   const toast = useUI((state) => state.toast)
@@ -178,6 +267,9 @@ export function Categories() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Category | undefined>()
   const [deleting, setDeleting] = useState<Category | undefined>()
+  const [budgetModalOpen, setBudgetModalOpen] = useState(false)
+  const [editingBudget, setEditingBudget] = useState<Budget | undefined>()
+  const [budgetCategoryId, setBudgetCategoryId] = useState<string | undefined>()
 
   const month = monthKey(referenceDate)
   const monthByCategory = useMemo(() => {
@@ -200,6 +292,18 @@ export function Categories() {
   const openEdit = (category: Category) => {
     setEditing(category)
     setModalOpen(true)
+  }
+
+  const openCreateBudget = (categoryId: string) => {
+    setEditingBudget(undefined)
+    setBudgetCategoryId(categoryId)
+    setBudgetModalOpen(true)
+  }
+
+  const openEditBudget = (budget: Budget) => {
+    setEditingBudget(budget)
+    setBudgetCategoryId(budget.categoryId)
+    setBudgetModalOpen(true)
   }
 
   const handleDelete = () => {
@@ -253,9 +357,14 @@ export function Categories() {
               key={category.id}
               category={category}
               monthTotal={monthByCategory.get(category.id) ?? 0}
+              budgets={budgets}
+              transactions={transactions}
+              referenceDate={referenceDate}
               currency={currency}
               onEdit={() => openEdit(category)}
               onDelete={() => setDeleting(category)}
+              onAddBudget={() => openCreateBudget(category.id)}
+              onEditBudget={openEditBudget}
             />
           ))}
         </div>
@@ -286,6 +395,13 @@ export function Categories() {
         onClose={() => setModalOpen(false)}
         category={editing}
         defaultType={tab}
+      />
+
+      <BudgetModal
+        open={budgetModalOpen}
+        onClose={() => setBudgetModalOpen(false)}
+        budget={editingBudget}
+        defaultCategoryId={budgetCategoryId}
       />
 
       <ConfirmDialog
